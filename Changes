@@ -91,3 +91,8 @@ Revision history for Perl extension Data::Verify.
 0.01_14
 
 	add REF type.
+
+0.01_20
+
+	added Data::Verify::Guard which inspects whole objects.
+	added 't/guard.t' test.

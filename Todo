@@ -141,6 +141,7 @@ todo
 {
 	clean the exception/Error handling. Somehow ->line and ->file don't function correctly.
 }
+done
 
 todo
 {
@@ -157,3 +158,26 @@ todo
 	
 	verify( $string, VARCHAR(80), EMAIL )
 }
+comment
+{
+    isnt that default ?
+}
+done
+{
+	yes it is
+}
+
+todo
+{
+    add filters.
+}
+done
+{
+	See Filter::
+}
+
+todo
+{
+	overify() / Data::Verify::Guard should report which member failed
+}
+

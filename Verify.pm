@@ -73,6 +73,8 @@ package Failure::Function;
 package Data::Verify;
 
 	use IO::Extended qw(:all);
+	
+	use Iter qw(:all);
 
 	our @types = type_list();
 
@@ -84,13 +86,13 @@ package Data::Verify;
 
 	our @ISA = qw( Exporter );
 
-	our %EXPORT_TAGS = ( 'all' => [ qw(typ untyp istyp verify catalog testplan), map { uc } @types ] );
+	our %EXPORT_TAGS = ( 'all' => [ qw(typ untyp istyp verify overify catalog testplan), map { uc } @types ] );
 
 	our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 	our @EXPORT = ();
 
-	our $VERSION = "0.01_15";
+	our $VERSION = "0.01_21";
 
 	our $DEBUG = 0;
 
@@ -182,6 +184,47 @@ package Data::Verify;
 		}
 	}
 
+		# verify a collection of types against an object
+		
+	sub overify 
+	{
+		my $rules = shift;
+	
+		my @objects = @_;
+
+		my $m;
+				
+		::try
+		{
+			foreach my $obj ( @objects )
+			{
+				foreach ( iter $rules )
+				{ 
+					my ( $m, $t ) = ( key(), value() );
+									
+					if( ref( $t ) eq 'ARRAY' ) 
+					{
+						verify( $obj->$m ,  @{ $t } );
+					}
+					elsif( ref( $t ) eq 'CODE' )
+					{
+						throw Type::Exception( text => 'overify failed with '.$m.' for object via CODEREF' ) unless $t->( $obj->$m );
+					}
+					else
+					{
+						verify( $obj->$m , $t );
+					}
+				}
+			}
+		}
+		catch Type::Exception ::with
+		{			
+			my $e = shift;
+			
+			throw $e; 
+		};
+	}
+
 	sub testplan
 	{
 		@Data::Verify::_history = ();
@@ -200,9 +243,11 @@ package Data::Verify;
 		return @Data::Verify::_history;
 	}
 
-	sub type_list
+	sub _grasp_sym_list
 	{
-		my @types = Data::Verify::_search_pkg( 'Type::' );
+        my $pk = shift or die;
+        
+		my @types = Data::Verify::_search_pkg( $pk );
 
 		my @result;
 
@@ -215,6 +260,10 @@ package Data::Verify;
 
 		return @result;
 	}
+	
+	sub type_list { _grasp_sym_list( 'Type::' ) };
+	
+	sub filter_list { _grasp_sym_list( 'Filter::' ) };
 
 	sub catalog
 	{
@@ -227,6 +276,15 @@ package Data::Verify;
 		foreach my $name ( @types )
 		{
 			$result .= sprintf "  %-18s - %s\n", uc $name, strlimit( ( bless [], "Type::${name}" )->info(  ) );
+		}
+
+		@types = filter_list();
+
+		$result .= sprintf "\nAnd %d filters:\n\n", scalar @types;
+
+		foreach my $name ( @types )
+		{
+			$result .= sprintf "  %-18s - %s\n", $name, strlimit( ( bless [], "Filter::${name}" )->info(  ) );
 		}
 		
 		return $result;
@@ -591,6 +649,30 @@ package Type::gender;
 		$Type::value = shift;
 
 			Data::Verify::pass( Function::Proxy::exists( [qw(male female)] ) );
+	}
+
+package Type::yesno;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return 'a simple answer (yes|no)';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+		
+			Filter::chomp->filter( \$Type::value );
+			
+			Filter::lc->filter( \$Type::value );
+
+			Data::Verify::pass( Function::Proxy::exists( [qw(yes no)] ) );
 	}
 
 package Type::mysql_date;
@@ -1158,6 +1240,78 @@ package Function::exists;
 		return sprintf 'element of array (%s)', join(  ', ', @{$this->[0]} );
 	}
 
+package Filter;
+
+	sub filter : method
+	{
+		die "abstract method called";
+	}
+
+	sub info : method
+	{
+		die "abstract method called";
+	}
+
+package Filter::chomp;
+
+	our @ISA = ( 'Filter' );
+	
+	sub filter : method
+	{
+		my $this = shift;
+
+		my $sref_val = shift;
+		
+	return chomp $$sref_val;
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return "chomps";
+	}
+
+package Filter::lc;
+
+	our @ISA = ( 'Filter' );
+	
+	sub filter : method
+	{
+		my $this = shift;
+
+		my $sref_val = shift;
+		
+	return lc $$sref_val;
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return "lower cases";
+	}
+
+package Filter::uc;
+
+	our @ISA = ( 'Filter' );
+	
+	sub filter : method
+	{
+		my $this = shift;
+
+		my $sref_val = shift;
+		
+	return lc $$sref_val;
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return "upper cases";
+	}
+
 package Data::Verify::Typed;
 
 	use strict;
@@ -1220,6 +1374,56 @@ package Data::Verify::Typed;
 		return $this->[0];
 	}
 
+package Data::Verify::Guard;
+
+	use Carp;
+	
+	Class::Maker::class
+	{
+		public =>
+		{
+			array => [qw( types )],
+			
+			hash => [qw( tests )],
+		},
+	};
+	
+	sub inspect : method
+	{
+		my $this = shift;
+	
+		my $object = shift;
+
+		my $decision;
+
+		if( @{ $this->types } > 0 )
+		{			
+			my %t;
+	
+			@t{ $this->types } = 1;
+
+			unless( exists $t{ ref( $object ) } )
+			{
+				carp "Guard is selective and only accepts ", join ', ', $this->types if $Data::Verify::DEBUG;
+				
+				return 0;
+			}    			
+		}
+			
+		::try
+		{
+			Data::Verify::overify( { $this->tests }, $object );
+			
+			$decision = 1;
+		}
+		catch Type::Exception ::with
+		{
+			$decision = 0;
+		};
+	
+	return $decision; 
+	}
+
 1;
 
 __END__
@@ -1245,6 +1449,28 @@ use Error qw(:try);
 	{	
 			printf "Expected '%s' %s at %s line %s\n", $_->value, $_->type->info, $_->was_file, $_->was_line foreach @_;
 	};
+
+	my $h = Human->new( email => 'j@d.de', firstname => 'john', lastname => 'doe', sex => 'male', countrycode => '123123', age => 12 );
+	
+	$h->contacts( { lucy => '110', john => '123' } );
+	
+	my $g = Data::Verify::Guard->new( 
+
+		types => [ 'Human', 'Others' ],
+		
+		tests =>
+		{
+			email		=> EMAIL, 
+			firstname	=> WORD,
+			lastname	=> WORD,
+			sex			=> GENDER,
+			countrycode => NUM,
+			age			=> NUM,
+			contacts	=> sub { my %args = @_; exists $args{lucy} },				
+		}
+	);
+	
+	$g->inspect( $h );
 	
 =head1 DESCRIPTION
 
@@ -1253,13 +1479,14 @@ databases have i.e. VARCHAR(80) ). When you try to feed a typed variable against
 odd data, this module explains what he would have expected. It doesnt support casting (yet).
 
 
+
 =head1 KEYWORDS
 
 data types, data manipulation, data patterns, user input, tie
 
 =head1 TYPES
 
-Data::Verify 0.01_13 supports 26 types:
+Data::Verify 0.01_21 supports 28 types:
 
   BOOL               - a true or false value
   EMAIL              - an email address
@@ -1284,9 +1511,18 @@ Data::Verify 0.01_13 supports 26 types:
   NUM                - a number
   QUOTED             - a quoted string
   REAL               - a real
+  REF                - a reference to a single (set of) types
   URI                - an http uri
   VARCHAR            - a string with limited length of choice (default 60)
   WORD               - a word (without spaces)
+  YESNO              - a simple answer (yes|no)
+
+And 3 filters:
+
+  chomp              - chomps
+  lc                 - lower cases
+  uc                 - upper cases
+
 
 =head2 NUMERIC TYPES
 
@@ -1312,9 +1548,26 @@ MYSQL_ENUM, MYSQL_SET
 
 verify( $teststring, $type, [ .. ] ) - Verifies a 'value' against a 'type'.
 
-=head3 Example
+overify( { member => TYPE, .. }, $object, [ .. ] ) - Verifies members of objects against multiple 'types' or CODEREFS.
 
-see SYNOPSIS.
+=head2 Data::Verify::Guard
+
+This is something like a Bouncer. He inspect 'objects' their members are of requested type. D::V::G has two parameters and one
+member.
+	
+=head3 types Parameter (Array)
+
+If empty isn't selective for special references (  HASH, ARRAY, "CUSTOM", .. ). If is set then "inspect" will fail if the object
+is not a reference of the listed type.
+
+=head3 tests Parameter (Hash)
+
+Keys are the members names (anything that can be called via the $o->member syntax) and the type(s) as value. When a member should
+match multple types, they should contained in an array reference. 
+
+=head3 inspect Member
+
+Accepts a blessed reference as a parameter. It returns 0 if a guard test or type constrain will fail, otherwise 1.  
 
 =head2 TYPE BINDING
 

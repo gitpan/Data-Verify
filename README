@@ -10,7 +10,7 @@ Data::Verify - versatile data/type verification, validation and testing
 
 VERSION
 
-0.01_15 (Tue Dec 10 01:08:47 2002)
+0.01_21 (Sun Dec 29 00:05:15 2002)
 
 DESCRIPTION
 
@@ -19,11 +19,12 @@ databases have i.e. VARCHAR(80) ). When you try to feed a typed variable against
 odd data, this module explains what he would have expected. It doesnt support casting (yet).
 
 
+
 TYPES
 
 perl -e "use Data::Verify qw(:all); print catalog()" lists all supported types:
 
-Data::Verify 0.01_13 supports 26 types:
+Data::Verify 0.01_21 supports 28 types:
 
   BOOL               - a true or false value
   EMAIL              - an email address
@@ -48,9 +49,18 @@ Data::Verify 0.01_13 supports 26 types:
   NUM                - a number
   QUOTED             - a quoted string
   REAL               - a real
+  REF                - a reference to a single (set of) types
   URI                - an http uri
   VARCHAR            - a string with limited length of choice (default 60)
   WORD               - a word (without spaces)
+  YESNO              - a simple answer (yes|no)
+
+And 3 filters:
+
+  chomp              - chomps
+  lc                 - lower cases
+  uc                 - upper cases
+
   
 EXAMPLES
 
@@ -82,6 +92,7 @@ To install this module type the following:
    make
    make test
    make install
+
 
 CPAN PREREQUISITES
 
