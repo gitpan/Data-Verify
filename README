@@ -1,0 +1,50 @@
+Data::Verify
+============
+
+Using object oriented techniques, you can create a hierarchy
+of tests for verifying any data.
+
+Here an example in pseudo-code:
+
+	DATA_TYPE A (extends DATA_TYPE B)
+	{
+		PASS
+		{
+			TEST 5
+			TEST 6
+		}
+
+		FAIL
+		{
+			TEST 1
+			TEST 2
+			TEST 3
+			TEST 4
+		}
+	}
+
+In real code:
+
+	verify( value => '00-00-00', 'gregorian_date' );
+
+STATUS
+
+This is alpha code. Do not use it. The documentation may be not
+in sync with the current code.
+
+INSTALLATION
+
+To install this module type the following:
+
+   perl Makefile.PL
+   make
+   make test
+   make install
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2002 Murat Uenalan
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+

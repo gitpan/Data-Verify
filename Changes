@@ -1,0 +1,6 @@
+Revision history for Perl extension Data::Verify.
+
+0.01  Wed Jul  3 19:19:46 2002
+	- original version; created by h2xs 1.21 with options
+		-n Data::Verify -X
+
