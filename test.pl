@@ -7,7 +7,8 @@
 
 use Test;
 BEGIN { plan tests => 1 };
-use Data::Verify qw(verify assess);
+
+use Data::Verify qw(:all);
 ok(1); # If we made it this far, we're ok.
 
 #########################
@@ -15,10 +16,14 @@ ok(1); # If we made it this far, we're ok.
 # Insert your test code below, the Test module is use()ed here so read
 # its man page ( perldoc Test ) for help writing this test script.
 
+use IO::Extended qw(:all);
+
 use Data::Dumper;
 
 my @pass =
 (
+	{ label => 'dummylabel', value => 'test@test.de', type => 'dummy' },
+
 	{ label => 'not null', value => 'NOTNULL', type => 'not_null' },
 
 	{ label => 'true expr', value => '1', type => 'true' },
@@ -51,9 +56,13 @@ my @fail =
 
 	my $result;
 
-	foreach ( @pass, @fail )
+	foreach my $href_args ( @pass, @fail )
 	{
-		print $_->{label}, " ", assess( $result = verify( %$_ ) ), "\n";
+		#print Dumper [ Data::Verify->new( %$href_args ) ], [ Data::Verify->new( label => 1, value => 'one', type => 'true' ) ];
 
-		print Dumper $result;
+		describe( Data::Verify->new( %$href_args ) );
+
+		print "\n", $href_args->{label}, "...", assess( $result = verify( %$href_args ) ) ? 'ok' : 'not ok', "\n" x 4;
+
+		#print Dumper $result;
 	}

@@ -41,10 +41,10 @@ To install this module type the following:
    make test
    make install
 
-COPYRIGHT AND LICENCE
+AUTHOR
+    Murat Uenalan, <muenalan@cpan.org>
 
-Copyright (C) 2002 Murat Uenalan
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself.
-
+COPYRIGHT/LICENSE
+    (c) 2002 by Murat Uenalan. All rights reserved. Note: This program is
+    free software; you can redistribute it and/or modify it under the same
+	terms as perl itself.

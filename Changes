@@ -4,3 +4,8 @@ Revision history for Perl extension Data::Verify.
 	- original version; created by h2xs 1.21 with options
 		-n Data::Verify -X
 
+0.01_04 28.07.2002 23:55
+
+	- Added Bouncer Classes.
+
+	- added 'describe'

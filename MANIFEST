@@ -2,5 +2,6 @@ Changes
 Makefile.PL
 MANIFEST
 README
+Todo
 test.pl
 Verify.pm

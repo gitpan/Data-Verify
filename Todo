@@ -1,0 +1,20 @@
+todo
+{
+	Implement fails as Exception (Error Module) using 'describe' to give versatile information.
+
+	my @fails;
+
+	while( @tests )
+	{
+		try
+		{
+			verify( $_ );
+		}
+		catch Data::Verify::Exception
+		{
+			push @fails, $exception;
+		}
+	}
+
+	print $_->totext foreach @fails;
+}
