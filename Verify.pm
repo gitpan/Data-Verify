@@ -92,7 +92,7 @@ package Data::Verify;
 
 	our @EXPORT = ();
 
-	our $VERSION = "0.01.24";
+	our $VERSION = '0.01.25';
 
 	our $DEBUG = 0;
 
@@ -1765,7 +1765,7 @@ __END__
 
 =head1 NAME
 
-Data::Verify - versatile data/type verification, validation and testing
+Data::Verify - deprecated and moved to Data::Type
 
 =head1 SYNOPSIS
 
