@@ -93,7 +93,7 @@ package Data::Verify;
 
 	our @EXPORT = ();
 
-	our $VERSION = '0.01_08';
+	our $VERSION = '0.01_09';
 
 	our $DEBUG = 0;
 
