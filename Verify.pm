@@ -90,7 +90,7 @@ package Data::Verify;
 
 	our @EXPORT = ();
 
-	our $VERSION = "0.01_13";
+	our $VERSION = "0.01_15";
 
 	our $DEBUG = 0;
 
@@ -863,6 +863,35 @@ package Type::mysql_set;
 			Data::Verify::pass( Function::Proxy::exists( [ @$this ] ) );
 	}
 
+package Type::ref;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return qq{a reference to a single (set of) types};
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::ref( $Type::value ) );
+						
+			if( @$this )
+			{
+				$Type::value = ref( $Type::value );
+				
+				$this = [ @$this ] unless ref( $this ) eq 'ARRAY';
+				
+				Data::Verify::pass( Function::Proxy::exists( [ @$this ] ) );
+			}
+	}
+
 	#
 	# Functions here
 	#
@@ -900,6 +929,24 @@ package Function::email;
 		my $mxcheck = shift || 0;
 
 		return sprintf "a valid email address (%s mxcheck)", $mxcheck ? 'with' : 'without';
+	}
+
+package Function::ref;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+		throw Failure::Function() unless ref( $val );
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return sprintf $this->[0] ? 'reference' : 'reference to %s', $this->[0];
 	}
 
 package Function::range;

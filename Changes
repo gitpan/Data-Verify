@@ -87,3 +87,7 @@ Revision history for Perl extension Data::Verify.
 	Example:
 		
 		if( istyp( $internet ) eq 'Type::email' ) 
+
+0.01_14
+
+	add REF type.

@@ -150,3 +150,10 @@ todo
 
 	ie. MYSQL::TIME vs (normal) TIME
 }
+
+todo
+{
+	verify/typ again multiple types at once !
+	
+	verify( $string, VARCHAR(80), EMAIL )
+}
