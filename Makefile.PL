@@ -6,11 +6,14 @@ WriteMakefile(
     'VERSION_FROM'	=> 'Verify.pm', # finds $VERSION
     'PREREQ_PM'		=>
     {
-    	Class::Maker => 0,
+    	Class::Maker 		=> 0.05_10,
 
-    	Error		=> 0.15,
+    	Error				=> 0.15,
 
-    }, # e.g., Module::Name => 1.1
+    	IO::Extended		=> 0.05,
+
+    	Regexp::Common		=> 0.09,
+    },
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM => 'Verify.pm', # retrieve abstract from module
        AUTHOR     => 'muenalan@cpan.org') : ()),

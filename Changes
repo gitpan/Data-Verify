@@ -9,3 +9,71 @@ Revision history for Perl extension Data::Verify.
 	- Added Bouncer Classes.
 
 	- added 'describe'
+
+0.01_05 31.07.2002 00:21
+
+	- Nearly a complete rewrite ! More clean oo-perl.
+
+	- Removed Exporter-stuff. No more namespace pollution ;)
+
+	- Tests now have there own packages and methods.
+
+	- Now Types are stored in $Data::Verify::Type::registry HASH.
+
+	- Added use of Exceptions (use Error) for reporting.
+
+		use Error qw(:try);
+
+		use Data::Verify;
+
+		try
+		{
+			my $test = Data::Verify->new( %$href_args );
+
+				# give info about this type and what it will do
+
+			println $test->info;
+
+				# returns an array of test-information
+
+			println join "\n", $test->describe;
+
+				# start our test-program and throw exception when there is trouble
+
+			$test->verify;
+		}
+		catch Data::Verify::Exception with
+		{
+		    my $e = shift;
+
+		    printfln "\n%s:", $e->text;
+
+		    println "Error ==> Expected that ".$_->text foreach @{ $e->object->fails };
+		};
+
+0.01_06
+
+	- Bouncer is now working (and throwing Bouncer::Exception)
+
+		try
+		{
+			$user_bouncer->inspect( $user );
+
+			println "\nAccepted.";
+		}
+		catch Bouncer::Exception with
+		{
+			my $e = shift;
+
+			println $e->text;
+
+		    println "ERROR: Expected that ".$_->text foreach @{ $e->object->object->list };
+		};
+
+0.01_07
+
+	!!!!!!!!!!!!!!!! A COMPLETE REWRITE !!!!!!!!!!!!!!!!
+
+                     .EVERYTHING CHANGED.
+
+    - See test.pl for the api.

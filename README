@@ -1,36 +1,18 @@
-Data::Verify
-============
 
-Using object oriented techniques, you can create a hierarchy
-of tests for verifying any data.
+	THIS IS ALPHA SOFTWARE. DO NOT USE IT. THE DOCUMENTATION MAY BE NOT	IN
+	SYNC WITH THE CURRENT CODE. IT IS MORE WORK IN PROGRESS AND CONSTANTLY
+	EVOLVING, AND NOT MADE FOR USE YET.
 
-Here an example in pseudo-code:
+NAME
+	Data::Verify - versatile data/type verification, validation and testing
 
-	DATA_TYPE A (extends DATA_TYPE B)
-	{
-		PASS
-		{
-			TEST 5
-			TEST 6
-		}
+DESCRIPTION
 
-		FAIL
-		{
-			TEST 1
-			TEST 2
-			TEST 3
-			TEST 4
-		}
-	}
+	Introduces the concept of types. Any data can be verified.
 
-In real code:
+KEYWORDS
 
-	verify( value => '00-00-00', 'gregorian_date' );
-
-STATUS
-
-This is alpha code. Do not use it. The documentation may be not
-in sync with the current code.
+data manipulation, data types, data patterns, user input, tie.
 
 INSTALLATION
 
@@ -40,6 +22,10 @@ To install this module type the following:
    make
    make test
    make install
+
+CPAN PREREQUISITES
+
+Class::Maker, Error, IO::Extended, Regexp::Common
 
 AUTHOR
     Murat Uenalan, <muenalan@cpan.org>

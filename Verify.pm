@@ -1,6 +1,6 @@
 # Author: Murat Uenalan (muenalan@cpan.org)
 #
-# Copyright (c) 2001 Murat Uenalan. All rights reserved.
+# Copyright (c) 2002 Murat Uenalan. All rights reserved.
 #
 # Note: This program is free software; you can redistribute
 #
@@ -10,329 +10,1154 @@ require 5.005_62; use strict; use warnings;
 
 use Class::Maker;
 
+use IO::Extended qw(:all);
+
 use Error qw(:try);
 
-package Data::Verify::Exception;
+package Type::Exception;
 
-our @ISA = qw(Error);
+	our @ISA = qw(Error);
 
-sub new
-{
-	my $class = shift;
-
-	$class = ref( $class ) || $class;
-
-    local $Error::Depth = $Error::Depth + 1;
-
-	my %args = @_;
-
-	my %super_args;
-
-	foreach my $key ( qw(text package file line object) )
+	sub new
 	{
-		if( exists $args{$key} )
-		{
-			$super_args{'-'.$key} = $args{$key};
+		my $class = shift;
 
-			delete $args{$key};
+		$class = ref( $class ) || $class;
+
+	    local $Error::Depth = $Error::Depth + 1;
+
+		my %args = @_;
+
+		my %super_args;
+
+		foreach my $key ( qw(text package file line object) )
+		{
+			if( exists $args{$key} )
+			{
+				$super_args{'-'.$key} = $args{$key};
+
+				delete $args{$key};
+			}
 		}
+
+		return $class->SUPER::new( %super_args );
 	}
 
-	my $this = $class->SUPER::new( %super_args );
+package Failure::Type;
 
-	return $this;
-}
+	Class::Maker::class
+	{
+		isa => [qw(Type::Exception)],
+
+		public =>
+	    {
+	    	bool => [qw( expected returned )],
+
+			string => [qw( was_file )],
+
+	    	int => [qw( was_line )],
+
+	    	ref => [qw( type value )],
+	    },
+	};
+
+package Failure::Function;
+
+	Class::Maker::class
+	{
+		isa => [qw(Type::Exception)],
+
+		public =>
+	    {
+	    	bool => [qw( expected returned )],
+
+	    	ref => [qw( type )],
+	    },
+	};
 
 package Data::Verify;
 
-our $VERSION = '0.01_04';
+	our @types = type_list();
 
-Class::Maker::class
-{
-	public =>
+		# generate Type subs
+
+	codegen();
+
+	use Exporter;
+
+	our @ISA = qw( Exporter );
+
+	our %EXPORT_TAGS = ( 'all' => [ qw(typ untyp verify catalog testplan), map { uc } @types ] );
+
+	our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
+
+	our @EXPORT = ();
+
+	our $VERSION = '0.01_08';
+
+	our $DEBUG = 0;
+
+	our @_history;
+
+	no strict 'refs';
+
+	sub strlimit
 	{
-		bool 	=> [qw( debug )],
+		my $limit = $_[1] || 60;
 
-		hash	=> [qw( tests types )],
+		return length( $_[0] ) > $limit ? join('', (split(//, $_[0]))[0..$limit-1]).'..' : $_[0];
+	}
 
-		array	=>  [qw( results )],
+	sub info
+	{
+		my $that = shift;
 
-		string 	=> [qw( type label ) ],
+		my $value = shift;
 
-		scalar => [qw(  value )],
-	},
-};
+		$value = '' unless defined( $value );
 
-require Exporter;
+		::printfln "\n\nVerify '%s' against '%s' (%s)", $value, ref $that, strlimit( $that->info ) if $DEBUG;
+	}
 
-our @ISA = qw(Exporter);
+	sub expect
+	{
+		my $expected = shift;
 
-our %EXPORT_TAGS = ( 'all' => [ qw(verify assess describe) ] );
-
-our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
-
-our @EXPORT = ();
-
-our @err;
-
-sub verify
-{
-	my $this = new Data::Verify( @_ );
-
-		die unless $this->type;
-
-			# reset error stack
-
-		@err = ();
-
-		my $result = {};
-
-		my $type = load_type( $this->type ) || die sprintf 'Unknown Data::Verify::Type::%s - Perhaps a typo ?', $this->type;
-
-		if( $type->pass )
+		foreach my $that ( @_ )
 		{
-			foreach ( keys %{ $type->pass } )
+			::try
 			{
-				$result->{$this->type.'.'.$_} = ( load_test($_)->( $this->value, $type->pass->{$_} ) )+0;
+				$that->test( $Type::value );
+
+				#info( $that ) if $DEBUG;
 			}
+			catch Failure::Function ::with
+			{
+				my @back = caller(7);
+
+				throw Failure::Type( value => $Type::value, type => $that, was_file => $back[1], was_line => $back[2] ) if $expected;
+			};
+		}
+	}
+
+	sub recording_expect
+	{
+		my $expected = shift;
+
+		foreach my $that ( @_ )
+		{
+			push @Data::Verify::_history, [ $that, $expected ];
+		}
+	}
+
+	our $current_expect = 'expect';
+
+	sub pass
+	{
+		$current_expect->( 1, @_ );
+	}
+
+	sub fail
+	{
+		$current_expect->( 0, @_ );
+	}
+
+	sub assert
+	{
+		::println $_[0] ? '..ok' : '..failed';
+	}
+
+		# Tests Types
+
+	sub verify
+	{
+		my $value = shift;
+
+		foreach my $that ( @_ )
+		{
+			$Type::value = undef;
+
+			info( $that, $value ) if $DEBUG;
+
+			$that->test( $value );
+		}
+	}
+
+	sub testplan
+	{
+		@Data::Verify::_history = ();
+
+		$Data::Verify::current_expect = 'recording_expect';
+
+		foreach my $that ( @_ )
+		{
+			$Type::value = undef;
+
+			$that->test( '' );
 		}
 
-		if( $type->fail )
+		$Data::Verify::current_expect = 'expect';
+
+		return @Data::Verify::_history;
+	}
+
+	sub type_list
+	{
+		my @types = Data::Verify::_search_pkg( 'Type::' );
+
+		my @result;
+
+		foreach my $key ( @types )
 		{
-			foreach ( keys %{ $type->fail } )
-			{
-				$result->{$this->type.'.'.$_} = ( not load_test($_)->( $this->value, $type->fail->{$_} ) )+0;
-			}
+			( my $name ) = ( $key =~ /::(.+)::$/ );
+
+			push @result, $name if $name =~ /^[a-z]/;
 		}
 
-		if( $type->extends )
+		return @result;
+	}
+
+	sub catalog
+	{
+		my @types = type_list();
+
+		::printfln "\n".__PACKAGE__." currently supports %d types:\n", scalar @types;
+
+		foreach my $name ( @types )
 		{
-			foreach my $subtype ( @{ $type->extends } )
-			{
-				$this->type( $subtype->id );
-
-				#print "Verify test ", $subtype->id, "\n";
-
-				$result = { %$result, %{ verify( %{ $this } ) } };
-			}
+			::printfln "  %-18s - %s", uc $name, strlimit( ( bless [], "Type::${name}" )->info(  ) );
 		}
+	}
 
-return $result;
-}
+	sub typ
+	{
+		my $type = shift;
 
-sub assess
-{
-return { reverse %{ $_[0] } }->{0} ? 0 : 1;
-}
+		foreach my $xref ( @_ )
+		{
+			ref($xref) or die sprintf "typ: %s reference detected, instead of a reference.", lc ref($xref) || 'no';
 
-sub load_type
-{
-	no strict qw(refs);
+			$type->isa( 'Type::UNIVERSAL' ) or die sprintf "typed( ref, TYPE ) expects a TYPE as second arguemnt. You supplied '%s' which is not.", $type;
 
-return ${ 'Data::Verify::Type::'.$_[0] };
-}
+			tie $$xref, 'Data::Verify::Typed', $type;
+		}
+	}
 
-sub load_test
-{
-	no strict qw(refs);
+	sub untyp
+	{
+		untie $$_ for @_;
+	}
 
-return *{ 'Data::Verify::Test::'.$_[0] };
-}
+	use subs qw(typ untyp);
 
-sub describe
-{
-	my $type = shift;
+	sub _search_pkg
+	{
+		my $path = '';
 
-		my $obj = Data::Verify::load_type( $type->type );
+		#s::println "_search_pkg scan $path";
 
-		printf "'%s' (%s) must be '%s' ( has to be of type '%s' ), and is ok when it\n",$type->value, $type->label, $obj->desc, $type->type ;
-
-		my $tests = $obj->all_tests;
+		my @found;
 
 		no strict 'refs';
 
-		foreach my $pass_or_fail ( qw(pass fail) )
+		foreach my $pkg ( @_ )
 		{
-			foreach my $subtype ( keys %{ $tests->{$pass_or_fail} } )
+			#::println "_search_pkg ARG $pkg";
+
+			next unless $pkg =~ /::$/;
+
+			$path .= $pkg;
+
+			#::println "PGK scan $path";
+
+			if( $path =~ /(.*)::$/ )
 			{
-				foreach my $test ( keys %{ $tests->{$pass_or_fail}->{$subtype} } )
+				foreach my $symbol ( sort keys %{$path} )
 				{
-					my $english;
+					if( $symbol =~ /::$/ && $symbol ne 'main::' )
+					{
+						#::println "PGK $path";
 
-					$english = "Data::Verify::Test::Warnings::${test}"->( $tests->{$pass_or_fail}->{$subtype}->{$test} );
-
-					printf " - %s %s (%s)\n", ($pass_or_fail) eq 'pass' ? 'is' : "isn't" , $english, $subtype;
+						push @found, "${path}${symbol}";
+					}
 				}
 			}
 		}
-}
 
-	##
-	##
-	##
-
-package Data::Verify::Type;
-
-Class::Maker::class
-{
-	public =>
-	{
-		string	=> [qw( id desc )],
-
-		array	=> [qw( extends )],
-
-		hash	=> [qw( pass fail )],
-	},
-};
-
-sub all_tests
-{
-	my $this = shift;
-
-		my $all;
-
-		foreach my $subtype ( @{ $this->extends }, $this )
-		{
-			$all->{pass}->{$subtype->id} = $subtype->pass if keys %{ $subtype->pass };
-
-			$all->{fail}->{$subtype->id} = $subtype->fail if keys %{ $subtype->fail };
-		}
-
-return $all;
-}
-
-our $true = 	new Data::Verify::Type( id => 'true', desc => 'a true value', pass => { bool => 1 } );
-
-our $false = 	new Data::Verify::Type( id => 'false', desc => 'a false value', fail => { bool => 1 } );
-
-our $not_null = new Data::Verify::Type( id => 'not_null', desc => 'not the string "NULL"', fail => { NULL => 1 } );
-
-our $null = 	new Data::Verify::Type( id => 'null', desc => 'must be the string "NULL"', pass => { NULL => 1 } );
-
-our $limited = 	new Data::Verify::Type( id => 'limited', desc => 'a standard length word', fail => { less => 1 } );
-
-our $text = 	new Data::Verify::Type( id => 'text', desc => 'a standard length word', pass => { range => [1,800] } );
-
-our $word = 	new Data::Verify::Type( id => 'word', desc => 'a word', extends => [ $limited ], pass => { match => qr/[a-zA-Z\-]+[0-9]*/ } );
-
-our $name = 	new Data::Verify::Type( id => 'name', desc => 'a first- or lastnames', extends => [ $limited ], pass => { match => qr/[^\s]+/ } );
-
-our $login = 	new Data::Verify::Type( id => 'login', desc => 'a login- or nickname', extends => [ $limited ], pass => { match => qr/[a-zA-Z\-]+[0-9]*/ } );
-
-our $email = 	new Data::Verify::Type( id => 'email', desc => 'an email address', pass => { less => 45, match => qr/([^\@]*)\@(\w+)(\.\w+)+/ }, fail => { less => 5 } ); # qr/^([\w.-]+)\@([\w.-]\.)+\w+$/ }
-
-our $number = 	new Data::Verify::Type( id => 'number', desc => 'a number or digit', extends => [ $limited ], pass => { match => qr/[\d]+/ } );
-
-our $number_notnull = new Data::Verify::Type( id => 'number_notnull', desc => 'a number or digit, but not 0', extends => [ $number ], fail => { match => qr/^0+$/ } );
-
-our $zip_ger = 	new Data::Verify::Type( id => 'zip_ger', desc => 'a german zip code', extends => [ $number ], pass => { less => 7 }, fail => { less => 4 } );
-
-our $phone_ger = new Data::Verify::Type( id => 'phone_ger', desc => 'a german phone number', pass => { less => 20, match => qr/[\d\-\+\)\(]+/ }, fail => { less => 3 } );
-
-our $creditcard = new Data::Verify::Type( id => 'creditcard', desc => 'a credit-card number', extends => [ $limited ], pass => { creditcard => [ 'amex', 'mastercard', 'vextends' ] } );
-
-our $dummy = 	new Data::Verify::Type( id => 'dummy', desc => 'a dummy comlex', extends => [ $text, $word, $email ] );
-
-	##
-	##
-	##
-
-package Data::Verify::Test;
-
-sub range	{ return 0 unless defined($_[0]); return ( length($_[0]) >= $_[1]->[0] && length($_[0]) <= $_[1]->[1]) ? 1 : 0 ; }
-
-sub lines	{ return 0 unless defined($_[0]); return ($_[0] =~ s/(\n)//g) > $_[1]; }
-
-sub less	{ return 0 unless defined($_[0]); return length($_[0]) < $_[1]; }
-
-sub match	{ return 0 unless defined($_[0]); return ($_[0] =~ $_[1]) ? 1 : 0; }
-
-sub is		{ return $_[0] }
-
-sub bool    { return $_[0] ? 1 : 0 }
-
-sub NULL    { return uc( $_[0] ) eq 'NULL' ? 1 : 0 }
-
-sub exists_in
-{
-	if( ref( $_[1] ) eq 'ARRAY' )
-	{
-		my %hash;
-
-		@hash{ @{ $_[1] } } = 1;
-
-		$_[1] = \%hash;
+	return @found;
 	}
 
-return ( exists $_[1]->{$_[0]} ) ? 1 : 0;
-}
+			# Generate Type alias subs
+			#
+			# - Generate subs like 'VARCHAR' into this package
+			# - These are then Exported
+			#
+			# Note that codegen is called above
 
-package Data::Verify::Test::Warnings;
-
-sub range	{ return sprintf 'between %s - %s', $_[0]->[0], $_[0]->[1] }
-
-sub lines	{ return sprintf '%d lines', $_[0] }
-
-sub less 	{ return sprintf 'less than %d chars long', $_[0] }
-
-sub match	{ return sprintf 'matching the regular expression /%s/', $_[0] }
-
-sub is		{ return sprintf 'exact %s', $_[0] }
-
-sub bool	{ return sprintf 'boolean %s', $_[0] ? 'true' : 'false' }
-
-sub NULL	{ return 'exactly NULL' }
-
-sub exists_in { return sprintf 'expected in a %s', ref( $_[0] ) }
-
-	##
-	##	Object Bouncer
-	##
-
-package Bouncer::Test;
-
-	Class::Maker::class
+	sub codegen
 	{
-		public =>
+		foreach my $type ( Data::Verify::type_list() )
 		{
-			string => [qw( field type )],
-		},
-	};
+			#::println $type;
 
-package Bouncer;
+			::println sprintf "sub %s { Type::Proxy::%s( \@_ ); };", uc $type, uc $type if $DEBUG;
 
-	Class::Maker::class
-	{
-		public =>
-		{
-			array => { tests => 'Bouncer::Test' },
-		},
-	};
+			eval sprintf "sub %s { Type::Proxy::%s( \@_ ); };", uc $type, uc $type;
 
-sub inspect : method
-{
-	my $this = shift;
-
-	my $client = shift or return undef;
-
-		no strict 'refs';
-
-		foreach my $test ( $this->tests )
-		{
-			my $met = $test->field;
-
-			die "'$met' is not a known field of ".ref($client) unless $client->can( $met );
-
-			unless( Data::Verify::assess( Data::Verify::verify( label => $met, value => $client->$met(), type => $test->type ) ) )
-			{
-				$@ .= " $met";
-
-				return 0;
-			}
+			warn $@ if $@;
 		}
 
-return 1;
-}
+		::println sprintf "use subs qw(%s);", uc( join ' ', Data::Verify::type_list() ) if $DEBUG;
+
+		eval sprintf "use subs qw(%s);", uc( join ' ', Data::Verify::type_list() );
+
+		warn $@ if $@;
+	}
+
+package Type::Proxy;
+
+	use vars qw($AUTOLOAD);
+
+	sub AUTOLOAD
+	{
+		( my $func = $AUTOLOAD ) =~ s/.*:://;
+
+	return bless [ @_ ], sprintf "Type::%s", lc $func;
+	}
+
+package Regex;
+
+		use Regexp::Common;
+
+	sub exact
+	{
+		return '^'.$_[0].'$';
+	}
+
+package Type;
+
+		# This value is important. It gets reset to undef in verify() before the test starts. During test
+		# it hold the $value of the data to tested against.
+
+	our $value;
+
+package Type::UNIVERSAL;
+
+	sub to_text
+	{
+		my $this = shift;
+
+		return "to_text() on $this called.";
+	}
+
+package Type::varchar;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return sprintf 'a string with limited length of %s', $this->[0] || 'choice (default 60)';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = length( shift );
+
+			Data::Verify::pass( Function::Proxy::range( 0, $this->[0] || 60 ) );
+	}
+
+package Type::word;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return 'a word (without spaces)';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::match( qr/[^\s]+/ ) );
+	}
+
+package Type::bool;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return sprintf 'a %s boolean value', $this->[0] || 'true or false';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			if( $this->[0] eq 'true' )
+			{
+				Data::Verify::pass( Function::Proxy::bool( $this->[0] ) );
+			}
+			else
+			{
+				Data::Verify::fail( Function::Proxy::bool( $this->[0] ) );
+			}
+	}
+
+package Type::int;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return 'an integer';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::match( Regex::exact( $Regex::RE{num}{int} ) ) );
+	}
+
+package Type::num;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return 'a number';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+				# Here we test the hierarchy feature -> nested types !
+
+			Type::int->test( $value );
+	}
+
+package Type::real;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return 'a real';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::match( Regex::exact( $Regex::RE{num}{real} ) ) );
+	}
+
+package Type::email;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return 'an email address';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::email( $this->[0] ) );
+
+			#Data::Verify::pass( Function::Proxy::match( qr/(?:[^\@]*)\@(?:\w+)(?:\.\w+)+/ ) );
+	}
+
+package Type::uri;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		my $scheme = $this->[0] || 'http';
+
+		return sprintf 'an %s uri', $scheme;
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			my $scheme = $this->[0] || 'http';
+
+			Data::Verify::pass( Function::Proxy::match( Regex::exact( $Regex::RE{URI}{HTTP}{'-scheme='.$scheme} ) ) );
+	}
+
+package Type::ipv4;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return 'an IPv4 network address';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::match( Regex::exact( $Regex::RE{net}{IPv4} ) ) );
+	}
+
+package Type::quoted;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return 'a quoted string';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::match( Regex::exact( $Regex::RE{quoted} ) ) );
+	}
+
+package Type::gender;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return 'a gender (male|female)';
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::exists( [qw(male female)] ) );
+	}
+
+package Type::mysql_date;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+			#The supported range is '1000-01-01' to '9999-12-31' (mysql)
+
+		return "a date";
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::match( Regex::exact( qr/\d{4}-[01]\d-[0-3]\d/ ) ) );
+	}
+
+package Type::mysql_datetime;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+			 #The supported range is '1000-01-01 00:00:00' to '9999-12-31 23:59:59' (mysql)
+
+		return "a date and time combination";
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::match( Regex::exact( qr/\d{4}-[01]\d-[0-3]\d [0-2]\d:[0-6]\d:[0-6]\d/ ) ) );
+	}
+
+package Type::mysql_timestamp;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+			#The range is '1970-01-01 00:00:00' to sometime in the year 2037 (mysql)
+
+		return "a timestamp";
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::match( Regex::exact( qr/[1-2][9|0][7-9,0-3][0-7]-[01]\d-[0-3]\d [0-2]\d:[0-6]\d:[0-6]\d/ ) ) );
+	}
+
+package Type::mysql_time;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+			#The range is '-838:59:59' to '838:59:59' (mysql)
+
+		return "a time";
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Data::Verify::pass( Function::Proxy::match( Regex::exact( qr/-?\d{3,3}:[0-6]\d:[0-6]\d/ ) ) );
+	}
+
+package Type::mysql_year;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+			#The allowable values are 1901 to 2155, 0000 in the 4-digit year format, and 1970-2069 if you use the 2-digit format (70-69) (default is 4-digit)
+
+		return "a year in 2- or 4-digit format";
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			my $yformat = $this->[0] || 4;
+
+			if( $yformat == 2 )
+			{
+					#1970-2069 if you use the 2-digit format (70-69);
+
+				Data::Verify::pass( Function::Proxy::match( Regex::exact( qr/\d{2,2}/ ) ) );
+			}
+			else
+			{
+					#The allowable values are 1901 to 2155, 0000 in the 4-digit
+
+				Data::Verify::pass( Function::Proxy::match( Regex::exact( qr/[0-2][9,0,1]\d\d/ ) ) );
+			}
+	}
+
+package Type::mysql_tinytext;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return "a 'blob' or 'text' with a max length of 255 (2^8 - 1) characters (mysql)";
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = length( shift );
+
+			Data::Verify::pass( Function::Proxy::max( 255 ) );
+	}
+
+package Type::mysql_tinyblob;
+
+	our @ISA = qw(Type::mysql_tinytext);
+
+
+package Type::mysql_text;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return "a 'blob' or 'text' with a max length of 65535 (2^16 - 1) characters (mysql)";
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = length( shift );
+
+			Data::Verify::pass( Function::Proxy::max( 65535 ) );
+	}
+
+package Type::mysql_blob;
+
+	our @ISA = qw(Type::mysql_text);
+
+package Type::mysql_mediumtext;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return "a 'blob' or 'text' with a max length of 16777215 (2^24 - 1) characters (mysql)";
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = length( shift );
+
+			Data::Verify::pass( Function::Proxy::max( 16777215 ) );
+	}
+
+package Type::mysql_mediumblob;
+
+	our @ISA = qw(Type::mysql_mediumtext);
+
+package Type::mysql_longtext;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+		return "a 'blob' or 'text' with a max length of 4294967295 (2^32 - 1) characters (mysql)";
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = length( shift );
+
+			Data::Verify::pass( Function::Proxy::max( 4294967295 ) );
+	}
+
+package Type::mysql_longblob;
+
+	our @ISA = qw(Type::mysql_longtext);
+
+package Type::mysql_enum;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+			#A string object that can have only one value, chosen from the list of values 'value1', 'value2', ..., NULL or the special "" error value. An ENUM can have a maximum of 65535 distinct values (mysql)
+
+		return qq{a member of an enumeration};
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			throw Failure::Function() if @$this > 65535;
+
+			Data::Verify::pass( Function::Proxy::exists( [ @$this ] ) );
+	}
+
+package Type::mysql_set;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info
+	{
+		my $this = shift;
+
+			# A string object that can have zero or more values, each of which must be chosen from the list of values 'value1', 'value2', ... A SET can have a maximum of 64 members. (mysql)
+
+		return qq{a set};
+	}
+
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			throw Failure::Function() if @$Type::value > 64;
+
+			throw Failure::Function() if @$this > 65535;
+
+			Data::Verify::pass( Function::Proxy::exists( [ @$this ] ) );
+	}
+
+	#
+	# Functions here
+	#
+
+package Function::Proxy;
+
+	use vars qw($AUTOLOAD);
+
+	sub AUTOLOAD
+	{
+		( my $func = $AUTOLOAD ) =~ s/.*:://;
+
+	return bless [ @_ ], sprintf 'Function::%s', $func;
+	}
+
+package Function::email;
+
+	use Email::Valid;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+		my $mxcheck = shift || 0;
+
+		throw Failure::Function() unless Email::Valid->address( -address => $val, -mxcheck => $mxcheck );
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		my $mxcheck = shift || 0;
+
+		return sprintf "a valid email address (%s mxcheck)", $mxcheck ? 'with' : 'without';
+	}
+
+package Function::range;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+		throw Failure::Function() unless defined( $val );
+
+		throw Failure::Function() unless $val >= $this->[0] && $val <= $this->[1];
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return sprintf 'between %s - %s', $this->[0], $this->[1];
+	}
+
+package Function::lines;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+		throw Failure::Function() unless defined($val);
+
+		throw Failure::Function() unless ($val =~ s/(\n)//g) > $this->[0];
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return sprintf '%d lines', $this->[0];
+	}
+
+package Function::less;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+		throw Failure::Function() unless defined($val);
+
+		throw Failure::Function() unless length($val) < $this->[0];
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return sprintf 'less than %d chars long', $this->[0];
+	}
+
+package Function::max;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+		throw Failure::Function() unless defined($val);
+
+		throw Failure::Function() if $val > $this->[0];
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return sprintf 'maximum of %d', $this->[0];
+	}
+
+package Function::min;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+		throw Failure::Function() unless defined($val);
+
+		throw Failure::Function() if $val < $this->[0];
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return sprintf 'minimum of %d', $this->[0];
+	}
+
+package Function::match;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+		throw Failure::Function() unless defined($val);
+
+		throw Failure::Function() unless $val =~ $this->[0];
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return sprintf 'matching the regular expression /%s/', $this->[0];
+	}
+
+package Function::is;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		throw Failure::Function() unless $this->[0];
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return sprintf 'exact %s', $this->[0];
+	}
+
+package Function::bool;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		throw Failure::Function() unless $this->[0];
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return sprintf "boolean '%s' value", $this->[0] ? 'true' : 'false';
+	}
+
+package Function::null;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+		throw Failure::Function() unless uc( $val ) eq 'NULL';
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return "exactly 'NULL'";
+	}
+
+package Function::exists;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+			if( ref( $val ) eq 'ARRAY' )
+			{
+				$this->test( $_ ) for @$val;
+
+				return;
+			}
+
+			if( ref( $this->[0] ) eq 'ARRAY' )
+			{
+				my %hash;
+
+				@hash{ @{ $this->[0] } } = 1;
+
+				$this->[0] = \%hash;
+			}
+
+		throw Failure::Function() unless exists $this->[0]->{$val};
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		if( ref( $this->[0] ) eq 'HASH' )
+		{
+			return sprintf 'element of hash keys (%s)', join( ', ', keys %{ $this->[0] } );
+		}
+
+		return sprintf 'element of array (%s)', join(  ', ', @{$this->[0]} );
+	}
+
+package Data::Verify::Typed;
+
+	use strict;
+
+	require Tie::Scalar;
+
+	our @ISA = qw(Tie::StdScalar);
+
+	our $DEBUG = 0;
+
+	sub TIESCALAR
+	{
+		ref( $_[1] ) || die;
+
+		$_[1]->isa( 'Type::UNIVERSAL' ) || die;
+
+		::printfln "TIESC '%s'", ref( $_[1] ) if $DEBUG;
+
+	    return bless [ undef, $_[1] ], $_[0];
+	}
+
+	sub STORE
+	{
+		my $this = shift;
+
+		my $value = shift || undef;
+
+		::printfln "STORE '%s' into %s typed against '%s'", $value, $this, ref( $this->[1] ) if $DEBUG;
+
+		::try
+		{
+			Data::Verify::verify( $value, $this->[1] );
+		}
+		catch Type::Exception ::with
+		{
+			my $e = shift;
+
+			my @back = caller(4);
+
+			warn sprintf "type conflict: '%s' is not %s at %s line %d\n", $value, $this->[1]->info, $back[1], $back[2];
+
+			record $e;
+		};
+
+		$this->[0] = $value;
+	}
+
+	sub FETCH
+	{
+		my $this = shift;
+
+		::printfln "FETCH $this '%s' ", $this->[0] if $DEBUG;
+
+		return $this->[0];
+	}
 
 1;
 
@@ -344,250 +1169,258 @@ Data::Verify - versatile data/type verification, validation and testing
 
 =head1 SYNOPSIS
 
-	use Data::Verify qw(assess verify);
+	use Data::Verify qw(:all);
 
+	$Data::Verify::DEBUG = 1;
+
+	catalog();
+
+		# Procedural interface
+
+	try
 	{
-		package Data::Verify::Type;
+			# VARCHAR
 
-		our $digit_not_0 = Data::Verify::Type->new(
+		verify( 'one two three', Type::Proxy::VARCHAR( 20 ), Function::Proxy::match( qw/one/ ) );
 
-			desc => 'a number or digit, but not 0',
+		verify( ' ' x 20 , VARCHAR( 20 ) );
 
-			extends => [qw(limited)],
+			# NUM
 
-			pass => { match => qr/[\d]+/ },
+		verify( '0' , NUM( 20 ) );
 
-			fail => { match => qr/^0+$/ }
+		verify( '234' , NUM( 20 ) );
 
-		);
+			# BOOL
 
-		our $german_zip = Data::Verify::Type->new(
+		verify( '1' , BOOL( 'true' ) );
 
-			desc => 'a german zip code',
+			# INT
 
-			extends => [qw(number)],
+		verify( '100' , INT );
 
-			pass => { less => 7 },
+			# REAL
 
-			fail => { less => 4 }
-		);
+		verify( '1.1' , REAL );
+
+			# QUOTED
+
+		verify( '"me"' , QUOTED );
+
+			# GENDER
+
+		verify( 'male' , GENDER );
+
+			# URI
+
+		verify( 'http://www.perl.org' , URI );
+
+		verify( 'http://www.cpan.org' , URI('http') );
+
+		verify( 'https://www.cpan.org' , URI('https') );
+
+		verify( 'ftp://www.cpan.org' , URI('ftp') );
+
+		verify( 'axkit://www.axkit.org' , URI('axkit') );
+
+		verify( '62.01.01.20' , IPV4 );
+
+			# MYSQL types
+
+		verify( '2001-01-01', MYSQL_DATE );
+
+		verify( '9999-12-31 23:59:59', MYSQL_DATETIME );
+
+		verify( '1970-01-01 00:00:00', MYSQL_TIMESTAMP );
+
+		verify( '-838:59:59', MYSQL_TIME );
+
+			# mysql_year: 1901 to 2155, 0000 in the 4-digit
+
+		verify( '1901', MYSQL_YEAR );
+
+		verify( '0000', MYSQL_YEAR );
+
+		verify( '2155', MYSQL_YEAR );
+
+			# mysql_year: 1970-2069 if you use the 2-digit format (70-69);
+
+		verify( '70', MYSQL_YEAR(2) );
+
+		verify( '69', MYSQL_YEAR(2) );
+
+		verify( '0' x 20, MYSQL_TINYTEXT );
+
+		verify( '0' x 20, MYSQL_TINYBLOB );
+
+		verify( '0' x 20, MYSQL_TEXT );
+
+		verify( '0' x 20, MYSQL_BLOB );
+
+		verify( '0' x 20, MYSQL_MEDIUMTEXT );
+
+		verify( '0' x 20, MYSQL_MEDIUMBLOB );
+
+		verify( '0' x 20, MYSQL_LONGTEXT );
+
+		verify( '0' x 20, MYSQL_LONGBLOB );
+
+		verify( 'one', MYSQL_ENUM( qw(one two three) ) );
+
+		verify( [qw(two six)], MYSQL_SET( qw(one two three four five six) ) );
+
+			# EMAIL
+
+		verify( 'muenalan@cpan.org' , EMAIL );
+
+		verify( 'muenalan<at>cpan.org' , EMAIL );
+	}
+	catch Type::Exception with
+	{
+		my $e = shift;
+
+		print "-" x 100, "\n";
+
+		::printfln "Exception '%s' caught", ref $e;
+
+		::printfln "Expected '%s' %s at %s line %s", $e->value, $e->type->info, $e->was_file, $e->was_line;
+	};
+
+	$Data::Verify::DEBUG = 0;
+
+	::println "=" x 100;
+
+	foreach my $type ( URI, EMAIL, IPV4, VARCHAR(80) )
+	{
+		::println "\n" x 2, "Describing ", $type->info;
+
+		foreach my $entry ( Data::Verify::testplan( $type ) )
+		{
+			::printfln "\texpecting it %s %s ", $entry->[1] ? 'is' : 'is NOT', Data::Verify::strlimit( $entry->[0]->info() );
+		}
 	}
 
-	verify( label => 'my personal digit', value => '12', type => 'digit_not_0' );
+	## Type Binding (Interface)
 
-	verify( label => 'an foreign zip', value => '999-233', type => 'german_zip' );
+	::println "-" x 100;
 
-	$bouncer->inspect( $user );
+	::println "\nTesting Data::Verify::Typed\n";
+
+	{
+		typ EMAIL, \( my $email, my $email1 );
+
+		my $cp = $email = 'murat.uenalan@gmx.de';
+
+		$email = 'fakeemail%anywhere.de';	# Error
+
+		$email = 'garbage anywhere.de';		# Error
+
+		$email1 = 'test.de';		# Error
+
+		untyp \$email;
+
+		$cp = $email = 'garbage';
+	}
+
+	{
+		typ URI, \( my $uri );
+
+		$uri = 'http://test.de';
+
+		$uri = 'xxx://test.de';	# Error
+	}
+
+	{
+		typ VARCHAR(10), \( my $var );
+
+		$var = join '', (0..9);
+
+		$var = join '', (0..10); # Error
+	}
+
+	{
+		typ IPV4, \( my $ip );
+
+		$ip = '255.255.255.0';
+
+		$ip = '127.0.0.1';
+
+		$ip = '127.0.0.1.x'; # Error
+	}
+
+	{
+		Class::Maker::class 'Watched',
+		{
+			public =>
+			{
+				ipaddr => [qw( addr )],
+			}
+		};
+
+		my $watched = Watched->new();
+
+		typ IPV4, \( $watched->addr );
+
+		$watched->addr( 'XxXxX' ); # Error
+	}
+
+	sub MYSQL::SET  { MYSQL_SET( @_ ) }
+
+	sub MYSQL::ENUM { MYSQL_ENUM( @_ ) }
+
+	{
+		typ MYSQL::ENUM( qw(Murat mo muri) ), \( my $alias );
+
+		$alias = 'Murat';
+
+		$alias = 'mo';
+
+		$alias = 'muri';
+
+		$alias = 'idiot'; # Error ;)
+	}
+
+	{
+		typ MYSQL::SET( qw(Murat mo muri) ), \( my $alias );
+
+		$alias = [ qw(Murat mo)];
+
+		$alias = [ 'john' ]; # Error ;)
+	}
 
 =head1 DESCRIPTION
 
-A sceptic programmer never trusts anybodys input (web forms, config files, etc.). He verifys if the data
-is in the right format. With this module he can do it in a very elegant and efficient way. Using object oriented
-techniques, you can create a hierarchy of tests for verifying almost everything.
-
-The verification procedure is like a simple program. The building blocks are called tests (While this has little
-to do with modules like Test::Simple, the term 'test' is used because it behaves like it ).
-Multiple tests result into a 'test program'. While some tests may be expected to fail, and some to pass
-to result into a valid verification.
-I call every data which passes the complete program as expected belonging to a 'data type' (So i use
-this term instead of 'test program').
-
-Here an example in pseudo-code for two data-types:
-
-	DATA_TYPE_B
-	{
-		PASS
-		{
-			TEST_1
-			TEST_2
-		}
-	}
-
-	DATA_TYPE_A (extends DATA_TYPE_B)
-	{
-		PASS
-		{
-			TEST_5
-			TEST_6
-		}
-
-		FAIL
-		{
-			TEST_1
-			TEST_2
-			TEST_3
-			TEST_4
-		}
-	}
-
-This means: Data is (belonging to) 'DATA_TYPE_A' when it is passing test 5 and 6 with success, and is
-failing tests 1,2,3 and 4. It also EXTENDS 'DATA_TYPE_B', that means that "DATA_TYPE_A" inherits all
-"DATA_TYPE A" PASS+FAIL tests.
+=head1 KEYWORDS
 
 =head1 TESTS
 
-Tests are simply subroutines in the Data::Verify::Test package. Per definition a test receives: 1) the test
-value 2) the test arguments. Then it simply returns true or false.
+=head2 BASIC TESTS
 
-Here a very simple example:
+=head2 CUSTOM TESTS
 
-	sub my_test { $_[0] > $_[1] }	# my_test( 12300, 100 ) would test if 12300 is bigger than 100
+=head1 TYPES
 
-=head1 PREDEFINED TESTS
+=head2 NUMERIC TYPES
 
-Following tests are always instantly available.
+=head2 DATE AND TIME TYPES
 
-	range 	- takes two arguments where the value has to be inbetween (ie. range => [1,800] )
+=head2 STRING (CHARACTERS) TYPES
 
-	lines 	- counts the lines (\n) (ie. lines => 5 )
+=head2 CUSTOM TYPES
 
-	less 	- lesser than the length in characters (ie. less => 3)
+=head1 INTERFACE
 
-	match 	- takes a regex to match (ie. match => qr/^0+$/ )
+=head2 FUNCTIONS
 
-	is 		- exact string comparision (ie. is => 'follow' )
+	verify( $teststring, $type, [ .. ] ) - Verifies a 'value' against a 'type'.
 
-	bool 	- transformation of the value into bool (ie. bool => undef)
+=head2 TYPE BINDING
 
-	NULL 	- exact string match 'NULL' (ie. NULL => 1)
-
-	exists_in - checks whether the <var> is in a list. if list is an
-
-		Array:	look if exact string is a member
-
-		Hash:	look if the <var> key exists
-
-		Example:
-
-			pass => { exists_in => { firstname => 1, lastname => 1, email => 1 } },
-
-			fail => { exists_in => [qw(blabla)] }
-=cut
-
-=head1 DATA TYPES
-
-A data can be simply instanciated by creation of a new Data::Verify::Type object.
-
-Example (how to create a new data type):
-
-	package Data::Verify::Type;
-
-		our $number_notnull = new Data::Verify::Type(
-
-			desc => 'a number or digit, but not 0',
-
-			extends => [qw(number)],
-
-			fail => { match => qr/^0+$/ }
-		);
-
-	Normally we should have added 'pass => { match => qr/\d+/ },', but we dont explicitly need to add it
-	because we inherit that from 'number'. Note: A regex-guru would have written simply a better regex which
-	would had done it with just one match, but this example is for education purposes.
-
-=head1 PREDEFINED DATA TYPES
-
-Following types are always instantly available.
-
-      true 		- a boolean true value
-
-      false		- a boolean false value
-
-      not_null	- not the string "NULL"
-
-      null		- must be the string "NULL"
-
-      limited	- a word longer than 1 character
-
-      text		- a standard length text ( 1-800 characters )
-
-      word		- a word ( match => qr/[a-zA-Z\-]+[0-9]*/ } )
-
-      name		- a first- or lastnames
-
-      login     - a login- or nickname
-
-      email		- an email address
-
-      number	- a number or digit
-
-      number_notnull 	- a number or digit, but not 0
-
-      zip_ger	- a german zip code
-
-      phone_ger - a german phone number
-
-      creditcard	- a credit-card number (not implemented yet)
-
-=head1 FUNCTIONS
-
-=head2 verify( $teststring, $data_type )
-
-Verifies a 'value' against a 'type'.
-
-Example:
-
-	my $verify_result = verify( label => 'Config.Author.Level', value => 'NULL', type => 'not_null' );
-
-	assess( $verify_result ) # this would fail
-
-Because verify returns a hashref containing information about the test result, you must use 'assess' (below) to
-transform it to a simple boolean value.
-
-=head2 assess( $verify_result )
-
-Use 'assess' to process the result of 'verify' to a simple boolean value.
-
-Example:
-
-	assess( verify( value => 0, type => 'false' );	# would return true
-
-=head2 describe( Data::Verify )
-
-Prints out an english text, describing how the format has to be and how it is tested.
-
-=head1 Bouncer Interface
-
-Observes/Inspects other objects if they fullfil a list of tests.
-
-A bouncer in front of a disco makes decisions. He inspects other persons if they meet
-the criteria/expectations to be accepted to enter the party or not. The criteria are instructed by
-the boss. This is also how "Bouncer" works: it inspects other objects and rejects/accepts them.
-
-Shortly i call it 'object bouncing'.
-
-=head2 EXAMPLE
-
-use Data::Verify;
-
-	my $user = new User( email => 'hiho@test.de', registered => 1 );
-
-	my $user_bouncer = Bouncer->new(
-
-		tests =>
-		[
-			Bouncer::Test->new( field => 'email', type => 'email' ),
-
-			Bouncer::Test->new( field => 'registered', type => 'not_null' ),
-
-			Bouncer::Test->new( field => 'firstname', type => 'word' ),
-
-			Bouncer::Test->new( field => 'lastname', type => 'word' )
-		]
-	);
-
-	if( $user_bouncer->inspect( $user ) )
-	{
-		print "User is ok";
-	}
-	else
-	{
-		print "rejects User because of unsufficient field:", $@;
-	}
+	typ/untyp
 
 =head2 EXPORT
 
-:all = assess, verify, describe
+all = (typ untyp verify catalog testplan), map { uc } @types
 
 None by default.
 
@@ -597,7 +1430,6 @@ Murat Uenalan, muenalan@cpan.org
 
 =head1 SEE ALSO
 
-Regexp::Common, Data::FormValidator, HTML::FormValidator, CGI::FormMagick::Validator, CGI::Validate,
+Data::Types, String::Checker, Regexp::Common, Data::FormValidator, HTML::FormValidator, CGI::FormMagick::Validator, CGI::Validate,
 Email::Valid, Email::Valid::Loose, Embperl::Form::Validate
 
-=cut
