@@ -10,7 +10,7 @@ Data::Verify - versatile data/type verification, validation and testing
 
 VERSION
 
-0.01.23 (Thu Jan  2 00:20:30 2003)
+0.01.24 (Fri Jan  3 00:48:50 2003)
 
 DESCRIPTION
 
@@ -18,13 +18,16 @@ This module supports types. Out of the ordinary it supports parameterised types 
 databases have i.e. VARCHAR(80) ). When you try to feed a typed variable against some
 odd data, this module explains what he would have expected. It doesnt support casting (yet).
 
+Functionality was utilised amongst others by Regexp::Common, Email::Valid and Business::CreditCard.
+
 TYPES and FILTERS
 
 perl -e "use Data::Verify qw(:all); print catalog()" lists all supported types:
 
-Data::Verify 0.01.23 supports 24 types:
+Data::Verify 0.01.24 supports 25 types:
 
   BOOL               - a true or false value
+  CREDITCARD         - is one of a set of creditcard type (DINERS, BANKCARD, VISA, ..
   DATE               - a date
   DATETIME           - a date and time combination
   EMAIL              - an email address
@@ -38,7 +41,7 @@ Data::Verify 0.01.23 supports 24 types:
   QUOTED             - a quoted string
   REAL               - a real
   REF                - a reference to a variable
-  SET                - a set
+  SET                - a set (can have a maximum of 64 members (mysql))
   TEXT               - blob with a max length of 65535 (2^16 - 1) characters (alias..
   TIME               - a time
   TIMESTAMP          - a timestamp
@@ -49,16 +52,17 @@ Data::Verify 0.01.23 supports 24 types:
   YEAR               - a year in 2- or 4-digit format
   YESNO              - a simple answer (yes|no)
 
-And 3 filters:
+And 4 filters:
 
   chomp              - chomps
   lc                 - lower cases
+  strip              - strip whitespaces
   uc                 - upper cases
 
 GROUPED TOC
 
  Logic
-  REF
+  CREDITCARD, REF
 
  Database
    Logic
@@ -76,6 +80,14 @@ GROUPED TOC
  String
   EMAIL, GENDER, IP, QUOTED, URI, VARCHAR, WORD, YESNO
 
+
+
+CREDITCARD known formats
+
+This feature isn't well tested yet (Because of lack of creditcard numbers for testing).
+
+Supported are: 'Diners Club', 'Australian BankCard', 'VISA', 'Discover/Novus', 'JCB', 'MasterCard', 'Carte Blache', 'American Express'. 
+They are parameterised as: DINERS, BANKCARD, VISA, DISCOVER, JCB, MASTERCARD, BLACHE, AMEX.
 
 EXAMPLES
 
@@ -97,7 +109,7 @@ use Error qw(:try);
 
 KEYWORDS
 
-data types, data manipulation, data patterns, user input, tie
+data types, data manipulation, data patterns, form data, user input, tie
 
 INSTALLATION
 
@@ -110,8 +122,7 @@ To install this module type the following:
 
 
 CPAN PREREQUISITES
-
-Class::Maker, Error, IO::Extended, Regexp::Common, Email::Valid
+Class::Maker (0.05.10), Error (0.15), IO::Extended (0.05), Regexp::Common (1.20), Email::Valid (0.14), Tie::ListKeyedHash (0.41), Business::CreditCard (0.27), Iter (0)
 
 AUTHOR
 
@@ -124,11 +135,9 @@ free software; you can redistribute it and/or modify it under the same
 terms as perl itself
 
 
-LAST CHANGES 0.01.23
+LAST CHANGES 0.01.24
 
-  changed version scheme to x.x.x (read perldelta, 'version' perldoc).
-  renamed MYSQL_* types to *, removed redundant MYSQL_ BLOB types (now there is equivalent TEXT only)
-  changed type IPV4 to general IP('V4') (or 'MAC', using Regexp::Common:net)
-  added Interfaces under IType for grouping the types. Now have ::Numeric, ::Temporal, ::String and ::Logic
-  added toc() which is like catalog(), but showing it grouped by context
-
+  added Tie::ListKeyedHash (0.41) to the Makefile.PL prerequisites
+  cleaned some of the pod documentation
+  added new type CREDITCARD (uses Business::CreditCard for LUHN mod10)
+  supported types are: DINERS, BANKCARD, VISA, DISCOVER, JCB, MASTERCARD, BLACHE, AMEX

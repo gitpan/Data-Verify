@@ -104,3 +104,10 @@ Revision history for Perl extension Data::Verify.
   changed type IPV4 to general IP('V4') (or 'MAC', using Regexp::Common:net)
   added Interfaces under IType for grouping the types. Now have ::Numeric, ::Temporal, ::String and ::Logic
   added toc() which is like catalog(), but showing it grouped by context
+
+0.01.24
+
+  added Tie::ListKeyedHash (0.41) to the Makefile.PL prerequisites
+  cleaned some of the pod documentation
+  added new type CREDITCARD (uses Business::CreditCard for LUHN mod10)
+  supported types are: DINERS, BANKCARD, VISA, DISCOVER, JCB, MASTERCARD, BLACHE, AMEX

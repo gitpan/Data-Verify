@@ -92,7 +92,7 @@ package Data::Verify;
 
 	our @EXPORT = ();
 
-	our $VERSION = "0.01.23";
+	our $VERSION = "0.01.24";
 
 	our $DEBUG = 0;
 
@@ -1012,7 +1012,7 @@ package Type::set;
 
 			# A string object that can have zero or more values, each of which must be chosen from the list of values 'value1', 'value2', ... A SET can have a maximum of 64 members. (mysql)
 
-		return qq{a set};
+		return qq{a set (can have a maximum of 64 members (mysql))};
 	}
 
 	sub test
@@ -1055,6 +1055,154 @@ package Type::ref;
 				
 				Data::Verify::pass( Function::Proxy::exists( [ @$this ] ) );
 			}
+	}
+
+package Type::creditcard;
+
+	our @ISA = qw(IType::Logic);
+
+	our $cardformats = 
+	{
+		DINERS => 
+		{
+			name	=> 'Diners Club',
+			
+			prefix	=> { 3000 => 3059, 3600 => 3699, 3800 => 3889 },
+			
+			digits	=> [ 14 ],
+		},
+	
+		AMEX => 
+		{
+			name	=> 'American Express',
+			
+			prefix	=> { 3400 => 3499, 3700 => 3799 },
+			
+			digits	=> [ 15 ],
+		},
+		
+		JCB => 
+		{
+			name	=> 'JCB',
+			
+			prefix	=> { 3528 => 3589 },
+
+			digits	=> [ 16 ],
+		},
+	
+		BLACHE => 
+		{
+			name	=> 'Carte Blache',
+			
+			prefix	=> { 3890 => 3899 },
+
+			digits	=> [ 14 ],
+		},
+	
+		VISA => 
+		{
+			name	=> 'VISA',
+			
+			prefix=> [ 4 ],
+
+			digits	=> [ 13, 16 ],
+		},
+	
+		MASTERCARD => 
+		{
+			name	=> 'MasterCard',
+			
+			prefix	=> { 5100 => 5599 },
+
+			digits	=> [ 16 ],
+		},
+	
+		BANKCARD => 
+		{
+			name	=> 'Australian BankCard',
+			
+			prefix	=> [ 5610 ],
+
+			digits	=> [ 16 ],
+		},
+	
+		DISCOVER => 
+		{
+			name	=> 'Discover/Novus',
+			
+			prefix	=> [ 6011 ],
+
+			digits	=> [ 16 ],
+		}		
+	};
+
+	sub info
+	{
+		my $this = shift;
+
+		return sprintf 'is one of a set of creditcard type (%s)', join( ', ', keys %$cardformats );
+	}
+
+	sub usage
+	{
+		my $this = shift;
+
+		return sprintf "CREDITCARD( Set of [%s], .. )", join( '|', keys %$cardformats );
+	}
+	
+	our $default_cc = 'VISA';
+	
+	sub test
+	{
+		my $this = shift;
+
+		$Type::value = shift;
+
+			Filter::strip->filter( \$Type::value, '\D' );
+
+			printf "creditcard '%s' is about to be tested\n", $Type::value if $Data::Verify::DEBUG;
+			
+			Data::Verify::pass( Function::Proxy::mod10check( $Type::value ) );
+
+			push @$this, $default_cc unless @$this;
+			
+			my $results = {};
+			
+			foreach ( @$this )
+			{
+				$results->{$_} = [];
+				
+				my $card = $cardformats->{$_};
+				
+				push @{ $results->{$_} }, 'digits' if map { length($Type::value) eq $_ ? () : 'invalid' } @{ $card->{digits} };
+				
+				if( ref $card->{prefix} eq 'HASH' )
+				{					
+					my $prefix;
+					
+					while( my( $min, $max ) = each %{ $card->{prefix} } )
+					{
+						$prefix = pack( 'a'.length($max), $Type::value );
+
+						push @{ $results->{$_} }, 'prefix' if $prefix+0 > $max;
+
+						$prefix = pack( 'a'.length($min), $Type::value );
+
+						push @{ $results->{$_} }, 'prefix' if $prefix+0 < $min;
+					}
+				}
+				elsif( ref $card->{prefix} eq 'ARRAY' )
+				{
+					for ( @{ $card->{prefix} } )
+					{
+						$_ .= '';
+						
+						push @{ $results->{$_} }, 'prefix' unless $Type::value =~ /$_/;
+					}
+				}
+			}
+			
+		throw Failure::Function() unless map { @{ $results->{$_} } == 0 ? 1 : () } keys %$results;
 	}
 
 	#
@@ -1323,6 +1471,86 @@ package Function::exists;
 		return sprintf 'element of array (%s)', join(  ', ', @{$this->[0]} );
 	}
 
+package Function::mod10check;
+
+	use Business::CreditCard;
+
+	sub test : method
+	{
+		my $this = shift;
+
+		my $val = shift;
+
+		# throw Failure::Function() unless mod10check( $val );
+
+			# We use Business::CreditCard's mod10 routine
+			
+		throw Failure::Function() unless validate( $val );
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return 'LUHN formula (mod 10) for validation of creditcards';
+	}
+	
+	# The following steps are required to validate the primary
+	# account number:
+	#
+	# Step 1:   Double the value of alternate digits of the primary
+	#			account number beginning with the second digit from
+	#			the right (the first right--hand digit is the
+	#			checkdigit.)
+	#
+	# Step 2:   Add the individual digits comprising the products
+	#			obtained in Step 1 to each of the unaffected digits
+	#			in the original number.
+	#
+	# Step 3:   The total obtained in Step 2 must be a number ending
+	#			in zero (30, 40, 50, etc.) for the account number
+	#			to be validated.
+				
+	sub mod10check($)
+	{
+		my $Number = shift;
+	
+		$Number =~ tr/[!0-9]//cd;
+	
+		my ( $NumberLength, $Location, $Checksum, $Digit ) = ( length($Number), 0, 0, '' );
+	
+			# Add even digits in even length strings
+			# or odd digits in odd length strings.
+		
+			# checke jede zweite zahl 
+		
+		for( $Location = 1 - ($NumberLength % 2); $Location < $NumberLength; $Location += 2 )
+		{
+			$Checksum += substr($Number, $Location, 1);
+		}
+	
+			# Analyze odd digits in even length strings
+			# or even digits in odd length strings.
+
+		for( $Location = ($NumberLength % 2); $Location < $NumberLength; $Location += 2 )
+		{
+			$Digit = substr($Number, $Location, 1) * 2;
+			
+			if ($Digit < 10)
+			{
+				$Checksum += $Digit;
+			}
+			else
+			{
+				$Checksum += $Digit - 9;
+			}
+		}
+	
+		# Is the checksum divisible by 10?
+		
+	return ($Checksum % 10 == 0);
+	}
+
 package Filter;
 
 	sub filter : method
@@ -1373,6 +1601,30 @@ package Filter::lc;
 		my $this = shift;
 
 		return "lower cases";
+	}
+
+package Filter::strip;
+
+	our @ISA = ( 'Filter' );
+	
+	sub filter : method
+	{
+		my $this = shift;
+
+		my $sref_val = shift;
+		
+		my $what = shift;
+		
+		$$sref_val =~ s/$what//go;
+		
+	return $$sref_val;
+	}
+
+	sub info : method
+	{
+		my $this = shift;
+
+		return 'strip whitespaces';
 	}
 
 package Filter::uc;
@@ -1520,13 +1772,14 @@ Data::Verify - versatile data/type verification, validation and testing
 use Data::Verify qw(:all);
 use Error qw(:try);
 
-	# EMAIL, URI, IPV4 are standard types
+	# EMAIL, URI, IP('V4') are standard types
 	
 	try
 	{
-		verify( $cgi->param( 'email' ), EMAIL  );
-		verify( $cgi->param( 'homepage' ) , URI('http') );
-		verify( $cgi->param( 'serverip' ) , IP('v4') );
+		verify( $cgi->param( 'email' ),    EMAIL  );
+		verify( $cgi->param( 'homepage' ), URI('http') );
+		verify( $cgi->param( 'serverip' ), IP('v4') );
+		verify( $cgi->param( 'cc' ),       CREDITCARD( 'MASTERCARD', 'VISA' ) );
 	}
 	catch Type::Exception with
 	{	
@@ -1543,12 +1796,8 @@ use Error qw(:try);
 		
 		tests =>
 		{
-			email		=> EMAIL, 
+			email		=> EMAIL( 1 ),		# mxcheck ON ! see Email::Valid
 			firstname	=> WORD,
-			lastname	=> WORD,
-			sex			=> GENDER,
-			countrycode => NUM,
-			age			=> NUM,
 			contacts	=> sub { my %args = @_; exists $args{lucy} },				
 		}
 	);
@@ -1561,18 +1810,21 @@ This module supports types. Out of the ordinary it supports parameterised types 
 databases have i.e. VARCHAR(80) ). When you try to feed a typed variable against some
 odd data, this module explains what he would have expected. It doesnt support casting (yet).
 
+Functionality was utilised amongst others by Regexp::Common, Email::Valid and Business::CreditCard.
+
 
 =head1 KEYWORDS
 
-data types, data manipulation, data patterns, user input, tie
+data types, data manipulation, data patterns, form data, user input, tie
 
 =head1 TYPES and FILTERS
 
 perl -e "use Data::Verify qw(:all); print catalog()" lists all supported types:
 
-Data::Verify 0.01.23 supports 24 types:
+Data::Verify 0.01.24 supports 25 types:
 
   BOOL               - a true or false value
+  CREDITCARD         - is one of a set of creditcard type (DINERS, BANKCARD, VISA, ..
   DATE               - a date
   DATETIME           - a date and time combination
   EMAIL              - an email address
@@ -1586,7 +1838,7 @@ Data::Verify 0.01.23 supports 24 types:
   QUOTED             - a quoted string
   REAL               - a real
   REF                - a reference to a variable
-  SET                - a set
+  SET                - a set (can have a maximum of 64 members (mysql))
   TEXT               - blob with a max length of 65535 (2^16 - 1) characters (alias..
   TIME               - a time
   TIMESTAMP          - a timestamp
@@ -1597,17 +1849,18 @@ Data::Verify 0.01.23 supports 24 types:
   YEAR               - a year in 2- or 4-digit format
   YESNO              - a simple answer (yes|no)
 
-And 3 filters:
+And 4 filters:
 
   chomp              - chomps
   lc                 - lower cases
+  strip              - strip whitespaces
   uc                 - upper cases
 
 
 =head1 GROUPED TYPES TOC
 
  Logic
-  REF
+  CREDITCARD, REF
 
  Database
    Logic
@@ -1661,7 +1914,7 @@ typ/untyp/istyp
 
 try
 {
-	typ MYSQL_ENUM( qw(Murat mo muri) ), \( my $alias );
+	typ ENUM( qw(Murat mo muri) ), \( my $alias );
 
 	$alias = 'Murat';
 
@@ -1719,6 +1972,10 @@ may be used to get an overview via:
 
 perl -e "use Data::Verify qw(:all); print catalog()"
 
+=head2 toc()
+
+returns a string containing a grouped listing of all know types.
+
 =head2 testplan( $type )
 
 Returns the entry-objects how the type is verified. This may be used to create a textual description how a type is verified.
@@ -1734,14 +1991,12 @@ all = (typ untyp istyp verify catalog testplan), map { uc } @types
 
 None by default.
 
-=head2 LAST CHANGES 0.01.23
+=head2 LAST CHANGES 0.01.24
 
-  changed version scheme to x.x.x (read perldelta, 'version' perldoc).
-  renamed MYSQL_* types to *, removed redundant MYSQL_ BLOB types (now there is equivalent TEXT only)
-  changed type IPV4 to general IP('V4') (or 'MAC', using Regexp::Common:net)
-  added Interfaces under IType for grouping the types. Now have ::Numeric, ::Temporal, ::String and ::Logic
-  added toc() which is like catalog(), but showing it grouped by context
-
+  added Tie::ListKeyedHash (0.41) to the Makefile.PL prerequisites
+  cleaned some of the pod documentation
+  added new type CREDITCARD (uses Business::CreditCard for LUHN mod10)
+  supported types are: DINERS, BANKCARD, VISA, DISCOVER, JCB, MASTERCARD, BLACHE, AMEX
 
 =head1 AUTHOR
 
@@ -1750,5 +2005,5 @@ Murat Ünalan, <murat.uenalan@cpan.org>
 =head1 SEE ALSO
 
 Data::Types, String::Checker, Regexp::Common, Data::FormValidator, HTML::FormValidator, CGI::FormMagick::Validator, CGI::Validate,
-Email::Valid, Email::Valid::Loose, Embperl::Form::Validate, Attribute::Types
+Email::Valid::Loose, Embperl::Form::Validate, Attribute::Types
 
