@@ -1,4 +1,4 @@
-# (c) 2002 by Murat Ünalan. All rights reserved. Note: This program is
+	# (c) 2002 by Murat Ünalan. All rights reserved. Note: This program is
 # free software; you can redistribute it and/or modify it under the same
 # terms as perl itself
 
@@ -86,13 +86,13 @@ package Data::Verify;
 
 	our @ISA = qw( Exporter );
 
-	our %EXPORT_TAGS = ( 'all' => [ qw(typ untyp istyp verify overify catalog testplan), map { uc } @types ] );
+	our %EXPORT_TAGS = ( 'all' => [ qw(typ untyp istyp verify overify catalog toc testplan), map { uc } @types ] );
 
 	our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 	our @EXPORT = ();
 
-	our $VERSION = "0.01_21";
+	our $VERSION = "0.01.23";
 
 	our $DEBUG = 0;
 
@@ -272,10 +272,10 @@ package Data::Verify;
 		my $result;
 		
 		$result .= sprintf __PACKAGE__." $VERSION supports %d types:\n\n", scalar @types;
-
-		foreach my $name ( @types )
+				
+		foreach my $name ( sort { $a cmp $b } @types )
 		{
-			$result .= sprintf "  %-18s - %s\n", uc $name, strlimit( ( bless [], "Type::${name}" )->info(  ) );
+			$result .= sprintf "%s%-18s - %s\n", " " x 2, uc $name, strlimit( ( bless [], "Type::${name}" )->info(  ) );
 		}
 
 		@types = filter_list();
@@ -286,6 +286,70 @@ package Data::Verify;
 		{
 			$result .= sprintf "  %-18s - %s\n", $name, strlimit( ( bless [], "Filter::${name}" )->info(  ) );
 		}
+		
+		return $result;
+	}
+
+	sub _show_list
+	{
+		my $hash = shift;
+		
+		my $ind = shift || 1;
+		
+		my $result;
+		
+		foreach my $key (keys %$hash)
+		{
+			my $val = $hash->{ $key };
+			
+				# headlines 
+				
+			unless( ref( $key ) )
+			{
+				$result .= sprintf "%s%s\n", " " x $ind, $key;
+			}
+			else
+			{
+				$result .= sprintf "%s%s\n", " " x $ind, $_ for @$key;
+			}
+						
+				# contents
+				
+			if( ref( $val ) eq 'ARRAY' )
+			{
+				$result .= sprintf "%s%s\n\n", "  " x $ind, join( ', ', @$val ); 
+			}
+			elsif( ref( $val ) eq 'HASH' )
+			{			
+				$result .= _show_list( $val, $ind + 2 );
+			}
+		}
+	
+	return $result;
+	}
+
+	sub toc
+	{
+		my @types = type_list();
+
+		my $result;
+				
+		use Tie::ListKeyedHash;
+		
+		tie my %tied_hash, 'Tie::ListKeyedHash';
+		
+		foreach my $name ( @types )
+		{
+			my @isa = @{ "Type::${name}::ISA" };
+				
+			my $special_key = [ map { $_->info } @isa ];
+			
+			$tied_hash{ $special_key } = [] unless exists $tied_hash{ $special_key };
+			
+			push @{ $tied_hash{ $special_key } }, sprintf "%s", uc $name;
+		}
+		
+		$result .= _show_list \%tied_hash;
 		
 		return $result;
 	}
@@ -416,9 +480,39 @@ package Type::UNIVERSAL;
 		return "Type::UNIVERSAL to_text() on $this called.";
 	}
 
-package Type::varchar;
+package IType::Numeric;
 
 	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info { 'Numeric' }
+	
+package IType::Temporal;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info { 'Time or Date related' }
+
+package IType::String;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info { 'String' }
+
+package IType::Logic;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info { 'Logic' }
+
+package IType::DB::Mysql;
+
+	our @ISA = qw(Type::UNIVERSAL);
+
+	sub info { 'Database' }
+
+package Type::varchar;
+
+	our @ISA = qw(IType::String);
 
 	sub info
 	{
@@ -438,7 +532,7 @@ package Type::varchar;
 
 package Type::word;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::String);
 
 	sub info
 	{
@@ -458,7 +552,7 @@ package Type::word;
 
 package Type::bool;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::Numeric);
 
 	sub info
 	{
@@ -485,7 +579,7 @@ package Type::bool;
 
 package Type::int;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::Numeric);
 
 	sub info
 	{
@@ -505,7 +599,7 @@ package Type::int;
 
 package Type::num;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::Numeric);
 
 	sub info
 	{
@@ -527,7 +621,7 @@ package Type::num;
 
 package Type::real;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::Numeric);
 
 	sub info
 	{
@@ -547,7 +641,7 @@ package Type::real;
 
 package Type::email;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::String);
 
 	sub info
 	{
@@ -569,7 +663,7 @@ package Type::email;
 
 package Type::uri;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::String);
 
 	sub info
 	{
@@ -591,15 +685,15 @@ package Type::uri;
 			Data::Verify::pass( Function::Proxy::match( Regex::exact( $Regex::RE{URI}{HTTP}{'-scheme='.$scheme} ) ) );
 	}
 
-package Type::ipv4;
+package Type::ip;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::String);
 
 	sub info
 	{
 		my $this = shift;
 
-		return 'an IPv4 network address';
+		return 'an IP (V4, MAC) network address';
 	}
 
 	sub test
@@ -608,12 +702,16 @@ package Type::ipv4;
 
 		$Type::value = shift;
 
-			Data::Verify::pass( Function::Proxy::match( Regex::exact( $Regex::RE{net}{IPv4} ) ) );
+			my $format = lc( $this->[0] || 'v4' );
+
+			$format = 'IP'.$format if $format =~ /^[vV][46]$/;
+
+			Data::Verify::pass( Function::Proxy::match( Regex::exact( $Regex::RE{net}{$format} ) ) );
 	}
 
 package Type::quoted;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::String);
 
 	sub info
 	{
@@ -633,7 +731,7 @@ package Type::quoted;
 
 package Type::gender;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::String);
 
 	sub info
 	{
@@ -653,7 +751,7 @@ package Type::gender;
 
 package Type::yesno;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::String);
 
 	sub info
 	{
@@ -675,9 +773,11 @@ package Type::yesno;
 			Data::Verify::pass( Function::Proxy::exists( [qw(yes no)] ) );
 	}
 
-package Type::mysql_date;
+	# HERE START THE MYSQL TYPES
+	
+package Type::date;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::Temporal);
 
 	sub info
 	{
@@ -697,9 +797,9 @@ package Type::mysql_date;
 			Data::Verify::pass( Function::Proxy::match( Regex::exact( qr/\d{4}-[01]\d-[0-3]\d/ ) ) );
 	}
 
-package Type::mysql_datetime;
+package Type::datetime;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::Temporal);
 
 	sub info
 	{
@@ -719,9 +819,9 @@ package Type::mysql_datetime;
 			Data::Verify::pass( Function::Proxy::match( Regex::exact( qr/\d{4}-[01]\d-[0-3]\d [0-2]\d:[0-6]\d:[0-6]\d/ ) ) );
 	}
 
-package Type::mysql_timestamp;
+package Type::timestamp;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::Temporal);
 
 	sub info
 	{
@@ -741,9 +841,9 @@ package Type::mysql_timestamp;
 			Data::Verify::pass( Function::Proxy::match( Regex::exact( qr/[1-2][9|0][7-9,0-3][0-7]-[01]\d-[0-3]\d [0-2]\d:[0-6]\d:[0-6]\d/ ) ) );
 	}
 
-package Type::mysql_time;
+package Type::time;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::Temporal);
 
 	sub info
 	{
@@ -763,9 +863,9 @@ package Type::mysql_time;
 			Data::Verify::pass( Function::Proxy::match( Regex::exact( qr/-?\d{3,3}:[0-6]\d:[0-6]\d/ ) ) );
 	}
 
-package Type::mysql_year;
+package Type::year;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::Temporal);
 
 	sub info
 	{
@@ -798,15 +898,15 @@ package Type::mysql_year;
 			}
 	}
 
-package Type::mysql_tinytext;
+package Type::tinytext;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::String);
 
 	sub info
 	{
 		my $this = shift;
 
-		return "a 'blob' or 'text' with a max length of 255 (2^8 - 1) characters (mysql)";
+		return "text with a max length of 255 (2^8 - 1) characters (alias mysql tinyblob)";
 	}
 
 	sub test
@@ -818,20 +918,15 @@ package Type::mysql_tinytext;
 			Data::Verify::pass( Function::Proxy::max( 255 ) );
 	}
 
-package Type::mysql_tinyblob;
+package Type::text;
 
-	our @ISA = qw(Type::mysql_tinytext);
-
-
-package Type::mysql_text;
-
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::String);
 
 	sub info
 	{
 		my $this = shift;
 
-		return "a 'blob' or 'text' with a max length of 65535 (2^16 - 1) characters (mysql)";
+		return "blob with a max length of 65535 (2^16 - 1) characters (alias mysql text)";
 	}
 
 	sub test
@@ -843,19 +938,15 @@ package Type::mysql_text;
 			Data::Verify::pass( Function::Proxy::max( 65535 ) );
 	}
 
-package Type::mysql_blob;
+package Type::mediumtext;
 
-	our @ISA = qw(Type::mysql_text);
-
-package Type::mysql_mediumtext;
-
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::String);
 
 	sub info
 	{
 		my $this = shift;
 
-		return "a 'blob' or 'text' with a max length of 16777215 (2^24 - 1) characters (mysql)";
+		return "text with a max length of 16777215 (2^24 - 1) characters (alias mysql mediumblob)";
 	}
 
 	sub test
@@ -867,19 +958,15 @@ package Type::mysql_mediumtext;
 			Data::Verify::pass( Function::Proxy::max( 16777215 ) );
 	}
 
-package Type::mysql_mediumblob;
+package Type::longtext;
 
-	our @ISA = qw(Type::mysql_mediumtext);
-
-package Type::mysql_longtext;
-
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::String);
 
 	sub info
 	{
 		my $this = shift;
 
-		return "a 'blob' or 'text' with a max length of 4294967295 (2^32 - 1) characters (mysql)";
+		return "text with a max length of 4294967295 (2^32 - 1) characters (alias mysql longblob)";
 	}
 
 	sub test
@@ -891,13 +978,9 @@ package Type::mysql_longtext;
 			Data::Verify::pass( Function::Proxy::max( 4294967295 ) );
 	}
 
-package Type::mysql_longblob;
+package Type::enum;
 
-	our @ISA = qw(Type::mysql_longtext);
-
-package Type::mysql_enum;
-
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::Logic);
 
 	sub info
 	{
@@ -919,9 +1002,9 @@ package Type::mysql_enum;
 			Data::Verify::pass( Function::Proxy::exists( [ @$this ] ) );
 	}
 
-package Type::mysql_set;
+package Type::set;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::DB::Mysql IType::Logic);
 
 	sub info
 	{
@@ -947,13 +1030,13 @@ package Type::mysql_set;
 
 package Type::ref;
 
-	our @ISA = qw(Type::UNIVERSAL);
+	our @ISA = qw(IType::Logic);
 
 	sub info
 	{
 		my $this = shift;
 
-		return qq{a reference to a single (set of) types};
+		return qq{a reference to a variable};
 	}
 
 	sub test
@@ -1443,11 +1526,11 @@ use Error qw(:try);
 	{
 		verify( $cgi->param( 'email' ), EMAIL  );
 		verify( $cgi->param( 'homepage' ) , URI('http') );
-		verify( $cgi->param( 'serverip' ) , IPV4 );
+		verify( $cgi->param( 'serverip' ) , IP('v4') );
 	}
 	catch Type::Exception with
 	{	
-			printf "Expected '%s' %s at %s line %s\n", $_->value, $_->type->info, $_->was_file, $_->was_line foreach @_;
+		printf "Expected '%s' %s at %s line %s\n", $_->value, $_->type->info, $_->was_file, $_->was_line foreach @_;
 	};
 
 	my $h = Human->new( email => 'j@d.de', firstname => 'john', lastname => 'doe', sex => 'male', countrycode => '123123', age => 12 );
@@ -1479,42 +1562,39 @@ databases have i.e. VARCHAR(80) ). When you try to feed a typed variable against
 odd data, this module explains what he would have expected. It doesnt support casting (yet).
 
 
-
 =head1 KEYWORDS
 
 data types, data manipulation, data patterns, user input, tie
 
-=head1 TYPES
+=head1 TYPES and FILTERS
 
-Data::Verify 0.01_21 supports 28 types:
+perl -e "use Data::Verify qw(:all); print catalog()" lists all supported types:
+
+Data::Verify 0.01.23 supports 24 types:
 
   BOOL               - a true or false value
+  DATE               - a date
+  DATETIME           - a date and time combination
   EMAIL              - an email address
+  ENUM               - a member of an enumeration
   GENDER             - a gender (male|female)
   INT                - an integer
-  IPV4               - an IPv4 network address
-  MYSQL_BLOB         - a 'blob' or 'text' with a max length of 65535 (2^16 - 1) cha..
-  MYSQL_DATE         - a date
-  MYSQL_DATETIME     - a date and time combination
-  MYSQL_ENUM         - a member of an enumeration
-  MYSQL_LONGBLOB     - a 'blob' or 'text' with a max length of 4294967295 (2^32 - 1..
-  MYSQL_LONGTEXT     - a 'blob' or 'text' with a max length of 4294967295 (2^32 - 1..
-  MYSQL_MEDIUMBLOB   - a 'blob' or 'text' with a max length of 16777215 (2^24 - 1) ..
-  MYSQL_MEDIUMTEXT   - a 'blob' or 'text' with a max length of 16777215 (2^24 - 1) ..
-  MYSQL_SET          - a set
-  MYSQL_TEXT         - a 'blob' or 'text' with a max length of 65535 (2^16 - 1) cha..
-  MYSQL_TIME         - a time
-  MYSQL_TIMESTAMP    - a timestamp
-  MYSQL_TINYBLOB     - a 'blob' or 'text' with a max length of 255 (2^8 - 1) charac..
-  MYSQL_TINYTEXT     - a 'blob' or 'text' with a max length of 255 (2^8 - 1) charac..
-  MYSQL_YEAR         - a year in 2- or 4-digit format
+  IP                 - an IP (V4, MAC) network address
+  LONGTEXT           - text with a max length of 4294967295 (2^32 - 1) characters (..
+  MEDIUMTEXT         - text with a max length of 16777215 (2^24 - 1) characters (al..
   NUM                - a number
   QUOTED             - a quoted string
   REAL               - a real
-  REF                - a reference to a single (set of) types
+  REF                - a reference to a variable
+  SET                - a set
+  TEXT               - blob with a max length of 65535 (2^16 - 1) characters (alias..
+  TIME               - a time
+  TIMESTAMP          - a timestamp
+  TINYTEXT           - text with a max length of 255 (2^8 - 1) characters (alias my..
   URI                - an http uri
   VARCHAR            - a string with limited length of choice (default 60)
   WORD               - a word (without spaces)
+  YEAR               - a year in 2- or 4-digit format
   YESNO              - a simple answer (yes|no)
 
 And 3 filters:
@@ -1524,23 +1604,27 @@ And 3 filters:
   uc                 - upper cases
 
 
-=head2 NUMERIC TYPES
+=head1 GROUPED TYPES TOC
 
-INT, NUM, REAL
+ Logic
+  REF
 
-=head2 DATE AND TIME TYPES
+ Database
+   Logic
+      ENUM, SET
 
-MYSQL_DATE, MYSQL_DATETIME, MYSQL_TIME, MYSQL_TIMESTAMP, MYSQL_YEAR
+   Time or Date related
+      DATE, DATETIME, TIME, TIMESTAMP, YEAR
 
-=head2 STRING (CHARACTERS) TYPES
+   String
+      LONGTEXT, MEDIUMTEXT, TEXT, TINYTEXT
 
-EMAIL, GENDER, IPV4, MYSQL_BLOB, MYSQL_LONGBLOB, MYSQL_LONGTEXT, MYSQL_MEDIUMBLOB,
-MYSQL_MEDIUMTEXT, MYSQL_TEXT, MYSQL_TINYBLOB, MYSQL_TINYTEXT, QUOTED, URI, VARCHAR,
-WORD
+ Numeric
+  BOOL, INT, NUM, REAL
 
-=head2 OTHER TYPES
+ String
+  EMAIL, GENDER, IP, QUOTED, URI, VARCHAR, WORD, YESNO
 
-MYSQL_ENUM, MYSQL_SET
 
 =head1 INTERFACE
 
@@ -1550,22 +1634,22 @@ verify( $teststring, $type, [ .. ] ) - Verifies a 'value' against a 'type'.
 
 overify( { member => TYPE, .. }, $object, [ .. ] ) - Verifies members of objects against multiple 'types' or CODEREFS.
 
-=head2 Data::Verify::Guard
+=head2 Data::Verify::Guard class
 
-This is something like a Bouncer. He inspect 'objects' their members are of requested type. D::V::G has two parameters and one
+This is something like a Bouncer. He inspect 'object' members for a specific type. The class has two attributes and one
 member.
 	
-=head3 types Parameter (Array)
+=head3 'types' attribute (Array)
 
 If empty isn't selective for special references (  HASH, ARRAY, "CUSTOM", .. ). If is set then "inspect" will fail if the object
 is not a reference of the listed type.
 
-=head3 tests Parameter (Hash)
+=head3 'tests' attribute (Hash)
 
 Keys are the members names (anything that can be called via the $o->member syntax) and the type(s) as value. When a member should
-match multple types, they should contained in an array reference. 
+match multple types, they should be contained in an array reference ( i.e. 'fon' => [ qw(NUM TELEPHONE) ] ).
 
-=head3 inspect Member
+=head3 'inspect' member
 
 Accepts a blessed reference as a parameter. It returns 0 if a guard test or type constrain will fail, otherwise 1.  
 
@@ -1649,6 +1733,15 @@ Returns the entry-objects how the type is verified. This may be used to create a
 all = (typ untyp istyp verify catalog testplan), map { uc } @types
 
 None by default.
+
+=head2 LAST CHANGES 0.01.23
+
+  changed version scheme to x.x.x (read perldelta, 'version' perldoc).
+  renamed MYSQL_* types to *, removed redundant MYSQL_ BLOB types (now there is equivalent TEXT only)
+  changed type IPV4 to general IP('V4') (or 'MAC', using Regexp::Common:net)
+  added Interfaces under IType for grouping the types. Now have ::Numeric, ::Temporal, ::String and ::Logic
+  added toc() which is like catalog(), but showing it grouped by context
+
 
 =head1 AUTHOR
 

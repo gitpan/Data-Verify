@@ -18,47 +18,39 @@ use Error qw(:try);
 
 			# MYSQL types
 
-		verify( '2001-01-01', MYSQL_DATE );
+		verify( '2001-01-01', DATE );
 
-		verify( '9999-12-31 23:59:59', MYSQL_DATETIME );
+		verify( '9999-12-31 23:59:59', DATETIME );
 
-		verify( '1970-01-01 00:00:00', MYSQL_TIMESTAMP );
+		verify( '1970-01-01 00:00:00', TIMESTAMP );
 
-		verify( '-838:59:59', MYSQL_TIME );
+		verify( '-838:59:59', TIME );
 
-			# mysql_year: 1901 to 2155, 0000 in the 4-digit
+			# year: 1901 to 2155, 0000 in the 4-digit
 
-		verify( '1901', MYSQL_YEAR );
+		verify( '1901', YEAR );
 
-		verify( '0000', MYSQL_YEAR );
+		verify( '0000', YEAR );
 
-		verify( '2155', MYSQL_YEAR );
+		verify( '2155', YEAR );
 
-			# mysql_year: 1970-2069 if you use the 2-digit format (70-69);
+			# year: 1970-2069 if you use the 2-digit format (70-69);
 
-		verify( '70', MYSQL_YEAR(2) );
+		verify( '70', YEAR(2) );
 
-		verify( '69', MYSQL_YEAR(2) );
+		verify( '69', YEAR(2) );
 
-		verify( '0' x 20, MYSQL_TINYTEXT );
+		verify( '0' x 20, TINYTEXT );
 
-		verify( '0' x 20, MYSQL_TINYBLOB );
+		verify( '0' x 20, MEDIUMTEXT );
 
-		verify( '0' x 20, MYSQL_TEXT );
+		verify( '0' x 20, LONGTEXT );
 
-		verify( '0' x 20, MYSQL_BLOB );
+		verify( '0' x 20, TEXT );
 
-		verify( '0' x 20, MYSQL_MEDIUMTEXT );
+		verify( 'one', ENUM( qw(one two three) ) );
 
-		verify( '0' x 20, MYSQL_MEDIUMBLOB );
-
-		verify( '0' x 20, MYSQL_LONGTEXT );
-
-		verify( '0' x 20, MYSQL_LONGBLOB );
-
-		verify( 'one', MYSQL_ENUM( qw(one two three) ) );
-
-		verify( [qw(two six)], MYSQL_SET( qw(one two three four five six) ) );
+		verify( [qw(two six)], SET( qw(one two three four five six) ) );
 		
 		ok(1);
 	}

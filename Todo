@@ -181,3 +181,7 @@ todo
 	overify() / Data::Verify::Guard should report which member failed
 }
 
+todo
+{
+	Filter::'s should also have delayed calls via AUTOLOAD like Type::
+}

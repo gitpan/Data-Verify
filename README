@@ -10,7 +10,7 @@ Data::Verify - versatile data/type verification, validation and testing
 
 VERSION
 
-0.01_21 (Sun Dec 29 00:05:15 2002)
+0.01.23 (Thu Jan  2 00:20:30 2003)
 
 DESCRIPTION
 
@@ -18,41 +18,35 @@ This module supports types. Out of the ordinary it supports parameterised types 
 databases have i.e. VARCHAR(80) ). When you try to feed a typed variable against some
 odd data, this module explains what he would have expected. It doesnt support casting (yet).
 
-
-
-TYPES
+TYPES and FILTERS
 
 perl -e "use Data::Verify qw(:all); print catalog()" lists all supported types:
 
-Data::Verify 0.01_21 supports 28 types:
+Data::Verify 0.01.23 supports 24 types:
 
   BOOL               - a true or false value
+  DATE               - a date
+  DATETIME           - a date and time combination
   EMAIL              - an email address
+  ENUM               - a member of an enumeration
   GENDER             - a gender (male|female)
   INT                - an integer
-  IPV4               - an IPv4 network address
-  MYSQL_BLOB         - a 'blob' or 'text' with a max length of 65535 (2^16 - 1) cha..
-  MYSQL_DATE         - a date
-  MYSQL_DATETIME     - a date and time combination
-  MYSQL_ENUM         - a member of an enumeration
-  MYSQL_LONGBLOB     - a 'blob' or 'text' with a max length of 4294967295 (2^32 - 1..
-  MYSQL_LONGTEXT     - a 'blob' or 'text' with a max length of 4294967295 (2^32 - 1..
-  MYSQL_MEDIUMBLOB   - a 'blob' or 'text' with a max length of 16777215 (2^24 - 1) ..
-  MYSQL_MEDIUMTEXT   - a 'blob' or 'text' with a max length of 16777215 (2^24 - 1) ..
-  MYSQL_SET          - a set
-  MYSQL_TEXT         - a 'blob' or 'text' with a max length of 65535 (2^16 - 1) cha..
-  MYSQL_TIME         - a time
-  MYSQL_TIMESTAMP    - a timestamp
-  MYSQL_TINYBLOB     - a 'blob' or 'text' with a max length of 255 (2^8 - 1) charac..
-  MYSQL_TINYTEXT     - a 'blob' or 'text' with a max length of 255 (2^8 - 1) charac..
-  MYSQL_YEAR         - a year in 2- or 4-digit format
+  IP                 - an IP (V4, MAC) network address
+  LONGTEXT           - text with a max length of 4294967295 (2^32 - 1) characters (..
+  MEDIUMTEXT         - text with a max length of 16777215 (2^24 - 1) characters (al..
   NUM                - a number
   QUOTED             - a quoted string
   REAL               - a real
-  REF                - a reference to a single (set of) types
+  REF                - a reference to a variable
+  SET                - a set
+  TEXT               - blob with a max length of 65535 (2^16 - 1) characters (alias..
+  TIME               - a time
+  TIMESTAMP          - a timestamp
+  TINYTEXT           - text with a max length of 255 (2^8 - 1) characters (alias my..
   URI                - an http uri
   VARCHAR            - a string with limited length of choice (default 60)
   WORD               - a word (without spaces)
+  YEAR               - a year in 2- or 4-digit format
   YESNO              - a simple answer (yes|no)
 
 And 3 filters:
@@ -61,7 +55,28 @@ And 3 filters:
   lc                 - lower cases
   uc                 - upper cases
 
-  
+GROUPED TOC
+
+ Logic
+  REF
+
+ Database
+   Logic
+      ENUM, SET
+
+   Time or Date related
+      DATE, DATETIME, TIME, TIMESTAMP, YEAR
+
+   String
+      LONGTEXT, MEDIUMTEXT, TEXT, TINYTEXT
+
+ Numeric
+  BOOL, INT, NUM, REAL
+
+ String
+  EMAIL, GENDER, IP, QUOTED, URI, VARCHAR, WORD, YESNO
+
+
 EXAMPLES
 
 Look in the t directory (of the release) for examples. Here a very simple one:
@@ -108,4 +123,12 @@ COPYRIGHT/LICENSE
 free software; you can redistribute it and/or modify it under the same
 terms as perl itself
 
+
+LAST CHANGES 0.01.23
+
+  changed version scheme to x.x.x (read perldelta, 'version' perldoc).
+  renamed MYSQL_* types to *, removed redundant MYSQL_ BLOB types (now there is equivalent TEXT only)
+  changed type IPV4 to general IP('V4') (or 'MAC', using Regexp::Common:net)
+  added Interfaces under IType for grouping the types. Now have ::Numeric, ::Temporal, ::String and ::Logic
+  added toc() which is like catalog(), but showing it grouped by context
 

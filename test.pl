@@ -24,7 +24,7 @@ ok(1); # If we made it this far, we're ok.
 
 	$Data::Verify::DEBUG = 1;
 
-	print catalog();
+	print toc();
 
 	Data::Verify::println VARCHAR( 20 )->to_text;
 
@@ -47,7 +47,7 @@ ok(1); # If we made it this far, we're ok.
 
 	Data::Verify::println "=" x 100;
 
-	foreach my $type ( URI, EMAIL, IPV4, VARCHAR(80) )
+	foreach my $type ( URI, EMAIL, IP( 'V4' ), VARCHAR(80) )
 	{
 		Data::Verify::println "\n" x 2, "Describing ", $type->info;
 

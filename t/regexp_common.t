@@ -22,7 +22,7 @@ use Error qw(:try);
 
 		verify( 'axkit://www.axkit.org' , URI('axkit') );
 
-		verify( '62.01.01.20' , IPV4 );
+		verify( '62.01.01.20' , IP( 'V4' ) );
 
 		ok(1);
 	}

@@ -96,3 +96,11 @@ Revision history for Perl extension Data::Verify.
 
 	added Data::Verify::Guard which inspects whole objects.
 	added 't/guard.t' test.
+
+0.01.23
+
+  changed version scheme to x.x.x (read perldelta, 'version' perldoc).
+  renamed MYSQL_* types to *, removed redundant MYSQL_ BLOB types (now there is equivalent TEXT only)
+  changed type IPV4 to general IP('V4') (or 'MAC', using Regexp::Common:net)
+  added Interfaces under IType for grouping the types. Now have ::Numeric, ::Temporal, ::String and ::Logic
+  added toc() which is like catalog(), but showing it grouped by context
