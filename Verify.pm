@@ -9,85 +9,11 @@
 
 require 5.005_62; use strict; use warnings;
 
-our $VERSION = '0.01_01';
-
 use Class::Maker;
 
-package Data::Verify::Test;
-
-sub range	{ return 0 unless defined($_[0]); return ( length($_[0]) >= $_[1]->[0] && length($_[0]) <= $_[1]->[1]) ? 1 : 0 ; }
-
-sub lines	{ return 0 unless defined($_[0]); return ($_[0] =~ s/(\n)//g) > $_[1]; }
-
-sub less	{ return 0 unless defined($_[0]); return length($_[0]) < $_[1]; }
-
-sub match	{ return 0 unless defined($_[0]); return ($_[0] =~ $_[1]) ? 1 : 0; }
-
-sub is		{ return $_[0] }
-
-sub bool    { return $_[0] ? 1 : 0 }
-
-sub NULL    { return uc( $_[0] ) eq 'NULL' ? 1 : 0 }
-
-sub exists_in
-{
-	if( ref( $_[1] ) eq 'ARRAY' )
-	{
-		my %hash;
-
-		@hash{ @{ $_[1] } } = 1;
-
-		$_[1] = \%hash;
-	}
-
-return ( exists $_[1]->{$_[0]} ) ? 1 : 0;
-}
-
-package Data::Verify::Type;
-
-Class::Maker::class
-{
-	attribute =>
-	{
-		string	=> [qw( id desc )],
-
-		array	=> [qw( extends )],
-
-		hash	=> [qw( pass fail )],
-	},
-};
-
-our $true = new Data::Verify::Type( desc => 'a true value', pass => { bool => 1 } );
-
-our $false = new Data::Verify::Type( desc => 'a false value', fail => { bool => 1 } );
-
-our $not_null = new Data::Verify::Type( desc => 'not the string "NULL"', fail => { NULL => 1 } );
-
-our $null = new Data::Verify::Type( desc => 'must be the string "NULL"', pass => { NULL => 1 } );
-
-our $limited = new Data::Verify::Type( desc => 'a standard length word', fail => { less => 1 } );
-
-our $text = new Data::Verify::Type( desc => 'a standard length word', pass => { range => [1,800] } );
-
-our $word = new Data::Verify::Type( desc => 'a word', extends => [qw(limited)], pass => { match => qr/[a-zA-Z\-]+[0-9]*/ } );
-
-our $name = new Data::Verify::Type( desc => 'a first- or lastnames', extends => [qw(limited)], pass => { match => qr/[^\s]+/ } );
-
-our $login = new Data::Verify::Type( desc => 'a login- or nickname', extends => [qw(limited)], pass => { match => qr/[a-zA-Z\-]+[0-9]*/ } );
-
-our $email = new Data::Verify::Type( desc => 'an email address', pass => { less => 45, match => qr/([^\@]*)\@(\w+)(\.\w+)+/ }, fail => { less => 5 } ); # qr/^([\w.-]+)\@([\w.-]\.)+\w+$/ }
-
-our $number = new Data::Verify::Type( desc => 'a number or digit', extends => [qw(limited)], pass => { match => qr/[\d]+/ } );
-
-our $number_notnull = new Data::Verify::Type( desc => 'a number or digit, but not 0', extends => [qw(number)], fail => { match => qr/^0+$/ } );
-
-our $zip_ger = new Data::Verify::Type( desc => 'a german zip code', extends => [qw(number)], pass => { less => 7 }, fail => { less => 4 } );
-
-our $phone_ger = new Data::Verify::Type( desc => 'a german phone number', pass => { less => 20, match => qr/[\d\-\+\)\(]+/ }, fail => { less => 3 } );
-
-our $creditcard = new Data::Verify::Type( desc => 'a credit-card number', extends => [qw(limited)], pass => { creditcard => [ 'amex', 'mastercard', 'vextends' ]} );
-
 package Data::Verify;
+
+our $VERSION = '0.01_02';
 
 Class::Maker::class
 {
@@ -166,6 +92,80 @@ sub load_test
 	no strict qw(refs);
 
 return *{ 'Data::Verify::Test::'.$_[0] };
+}
+
+package Data::Verify::Type;
+
+Class::Maker::class
+{
+	attribute =>
+	{
+		string	=> [qw( id desc )],
+
+		array	=> [qw( extends )],
+
+		hash	=> [qw( pass fail )],
+	},
+};
+
+our $true = new Data::Verify::Type( desc => 'a true value', pass => { bool => 1 } );
+
+our $false = new Data::Verify::Type( desc => 'a false value', fail => { bool => 1 } );
+
+our $not_null = new Data::Verify::Type( desc => 'not the string "NULL"', fail => { NULL => 1 } );
+
+our $null = new Data::Verify::Type( desc => 'must be the string "NULL"', pass => { NULL => 1 } );
+
+our $limited = new Data::Verify::Type( desc => 'a standard length word', fail => { less => 1 } );
+
+our $text = new Data::Verify::Type( desc => 'a standard length word', pass => { range => [1,800] } );
+
+our $word = new Data::Verify::Type( desc => 'a word', extends => [qw(limited)], pass => { match => qr/[a-zA-Z\-]+[0-9]*/ } );
+
+our $name = new Data::Verify::Type( desc => 'a first- or lastnames', extends => [qw(limited)], pass => { match => qr/[^\s]+/ } );
+
+our $login = new Data::Verify::Type( desc => 'a login- or nickname', extends => [qw(limited)], pass => { match => qr/[a-zA-Z\-]+[0-9]*/ } );
+
+our $email = new Data::Verify::Type( desc => 'an email address', pass => { less => 45, match => qr/([^\@]*)\@(\w+)(\.\w+)+/ }, fail => { less => 5 } ); # qr/^([\w.-]+)\@([\w.-]\.)+\w+$/ }
+
+our $number = new Data::Verify::Type( desc => 'a number or digit', extends => [qw(limited)], pass => { match => qr/[\d]+/ } );
+
+our $number_notnull = new Data::Verify::Type( desc => 'a number or digit, but not 0', extends => [qw(number)], fail => { match => qr/^0+$/ } );
+
+our $zip_ger = new Data::Verify::Type( desc => 'a german zip code', extends => [qw(number)], pass => { less => 7 }, fail => { less => 4 } );
+
+our $phone_ger = new Data::Verify::Type( desc => 'a german phone number', pass => { less => 20, match => qr/[\d\-\+\)\(]+/ }, fail => { less => 3 } );
+
+our $creditcard = new Data::Verify::Type( desc => 'a credit-card number', extends => [qw(limited)], pass => { creditcard => [ 'amex', 'mastercard', 'vextends' ]} );
+
+package Data::Verify::Test;
+
+sub range	{ return 0 unless defined($_[0]); return ( length($_[0]) >= $_[1]->[0] && length($_[0]) <= $_[1]->[1]) ? 1 : 0 ; }
+
+sub lines	{ return 0 unless defined($_[0]); return ($_[0] =~ s/(\n)//g) > $_[1]; }
+
+sub less	{ return 0 unless defined($_[0]); return length($_[0]) < $_[1]; }
+
+sub match	{ return 0 unless defined($_[0]); return ($_[0] =~ $_[1]) ? 1 : 0; }
+
+sub is		{ return $_[0] }
+
+sub bool    { return $_[0] ? 1 : 0 }
+
+sub NULL    { return uc( $_[0] ) eq 'NULL' ? 1 : 0 }
+
+sub exists_in
+{
+	if( ref( $_[1] ) eq 'ARRAY' )
+	{
+		my %hash;
+
+		@hash{ @{ $_[1] } } = 1;
+
+		$_[1] = \%hash;
+	}
+
+return ( exists $_[1]->{$_[0]} ) ? 1 : 0;
 }
 
 1;
