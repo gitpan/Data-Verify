@@ -77,3 +77,13 @@ Revision history for Perl extension Data::Verify.
                      .EVERYTHING CHANGED.
 
     - See test.pl for the api.
+	
+0.01_11
+
+	added istyp() to the tie interface. Now you can retrieve the type of a tied variable with
+	
+		istyp( $ref_to_var )
+		
+	Example:
+		
+		if( istyp( $internet ) eq 'Type::email' ) 

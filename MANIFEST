@@ -5,3 +5,8 @@ README
 Todo
 test.pl
 Verify.pm
+t/basic.t
+t/email_valid.t
+t/mysql.t
+t/regexp_common.t
+

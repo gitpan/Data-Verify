@@ -1,18 +1,82 @@
+                                DISCLAIMER
 
 	THIS IS ALPHA SOFTWARE. DO NOT USE IT. THE DOCUMENTATION MAY BE NOT	IN
 	SYNC WITH THE CURRENT CODE. IT IS MORE WORK IN PROGRESS AND CONSTANTLY
 	EVOLVING, AND NOT MADE FOR USE YET.
 
 NAME
-	Data::Verify - versatile data/type verification, validation and testing
+
+Data::Verify - versatile data/type verification, validation and testing
+
+VERSION
+
+0.01_13
+
+BUILT
+
+Thu Dec  5 22:28:34 2002
 
 DESCRIPTION
 
-	Introduces the concept of types. Any data can be verified.
+This module supports types. Out of the ordinary it supports parameterised types (like
+databases have i.e. VARCHAR(80) ). When you try to feed a typed variable against some
+odd data, this module explains what he would have expected. It doesnt support casting (yet).
+
+
+TYPES
+
+perl -e "use Data::Verify qw(:all); print catalog()" lists all supported types:
+
+Data::Verify 0.01_13 supports 26 types:
+
+  BOOL               - a true or false value
+  EMAIL              - an email address
+  GENDER             - a gender (male|female)
+  INT                - an integer
+  IPV4               - an IPv4 network address
+  MYSQL_BLOB         - a 'blob' or 'text' with a max length of 65535 (2^16 - 1) cha..
+  MYSQL_DATE         - a date
+  MYSQL_DATETIME     - a date and time combination
+  MYSQL_ENUM         - a member of an enumeration
+  MYSQL_LONGBLOB     - a 'blob' or 'text' with a max length of 4294967295 (2^32 - 1..
+  MYSQL_LONGTEXT     - a 'blob' or 'text' with a max length of 4294967295 (2^32 - 1..
+  MYSQL_MEDIUMBLOB   - a 'blob' or 'text' with a max length of 16777215 (2^24 - 1) ..
+  MYSQL_MEDIUMTEXT   - a 'blob' or 'text' with a max length of 16777215 (2^24 - 1) ..
+  MYSQL_SET          - a set
+  MYSQL_TEXT         - a 'blob' or 'text' with a max length of 65535 (2^16 - 1) cha..
+  MYSQL_TIME         - a time
+  MYSQL_TIMESTAMP    - a timestamp
+  MYSQL_TINYBLOB     - a 'blob' or 'text' with a max length of 255 (2^8 - 1) charac..
+  MYSQL_TINYTEXT     - a 'blob' or 'text' with a max length of 255 (2^8 - 1) charac..
+  MYSQL_YEAR         - a year in 2- or 4-digit format
+  NUM                - a number
+  QUOTED             - a quoted string
+  REAL               - a real
+  URI                - an http uri
+  VARCHAR            - a string with limited length of choice (default 60)
+  WORD               - a word (without spaces)
+  
+EXAMPLES
+
+Look in the t directory (of the release) for examples. Here a very simple one:
+
+use Data::Verify qw(:all);
+use Error qw(:try);
+
+	try
+	{
+		verify( 'muenalan<at>cpan.org' , EMAIL );
+		
+		print "email valid";
+	}
+	catch Type::Exception with
+	{
+		print "this is not an email";
+	};
 
 KEYWORDS
 
-data manipulation, data types, data patterns, user input, tie.
+data types, data manipulation, data patterns, user input, tie
 
 INSTALLATION
 
@@ -28,9 +92,13 @@ CPAN PREREQUISITES
 Class::Maker, Error, IO::Extended, Regexp::Common, Email::Valid
 
 AUTHOR
-    Murat Uenalan, <muenalan@cpan.org>
+
+Murat Ünalan, <murat.uenalan@cpan.org>
 
 COPYRIGHT/LICENSE
-    (c) 2002 by Murat Uenalan. All rights reserved. Note: This program is
-    free software; you can redistribute it and/or modify it under the same
-	terms as perl itself.
+
+(c) 2002 by Murat Ünalan. All rights reserved. Note: This program is
+free software; you can redistribute it and/or modify it under the same
+terms as perl itself
+
+

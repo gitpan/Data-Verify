@@ -1,16 +1,11 @@
-# Author: Murat Uenalan (muenalan@cpan.org)
-#
-# Copyright (c) 2002 Murat Uenalan. All rights reserved.
-#
-# Note: This program is free software; you can redistribute
-#
-# it and/or modify it under the same terms as Perl itself.
+# (c) 2002 by Murat Ünalan. All rights reserved. Note: This program is
+# free software; you can redistribute it and/or modify it under the same
+# terms as perl itself
+
 
 require 5.005_62; use strict; use warnings;
 
 use Class::Maker;
-
-use IO::Extended qw(:all);
 
 use Error qw(:try);
 
@@ -66,7 +61,7 @@ package Failure::Function;
 	Class::Maker::class
 	{
 		isa => [qw(Type::Exception)],
-
+		
 		public =>
 	    {
 	    	bool => [qw( expected returned )],
@@ -76,6 +71,8 @@ package Failure::Function;
 	};
 
 package Data::Verify;
+
+	use IO::Extended qw(:all);
 
 	our @types = type_list();
 
@@ -87,18 +84,20 @@ package Data::Verify;
 
 	our @ISA = qw( Exporter );
 
-	our %EXPORT_TAGS = ( 'all' => [ qw(typ untyp verify catalog testplan), map { uc } @types ] );
+	our %EXPORT_TAGS = ( 'all' => [ qw(typ untyp istyp verify catalog testplan), map { uc } @types ] );
 
 	our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 	our @EXPORT = ();
 
-	our $VERSION = '0.01_09';
+	our $VERSION = "0.01_13";
 
 	our $DEBUG = 0;
 
 	our @_history;
 
+	our $tie_registry = {};
+	
 	no strict 'refs';
 
 	sub strlimit
@@ -116,7 +115,7 @@ package Data::Verify;
 
 		$value = '' unless defined( $value );
 
-		::printfln "\n\nVerify '%s' against '%s' (%s)", $value, ref $that, strlimit( $that->info ) if $DEBUG;
+		printfln "\n\nVerify '%s' against '%s' (%s)", $value, ref $that, strlimit( $that->info ) if $DEBUG;
 	}
 
 	sub expect
@@ -164,7 +163,7 @@ package Data::Verify;
 
 	sub assert
 	{
-		::println $_[0] ? '..ok' : '..failed';
+		println $_[0] ? '..ok' : '..failed';
 	}
 
 		# Tests Types
@@ -221,12 +220,16 @@ package Data::Verify;
 	{
 		my @types = type_list();
 
-		::printfln "\n".__PACKAGE__." currently supports %d types:\n", scalar @types;
+		my $result;
+		
+		$result .= sprintf __PACKAGE__." $VERSION supports %d types:\n\n", scalar @types;
 
 		foreach my $name ( @types )
 		{
-			::printfln "  %-18s - %s", uc $name, strlimit( ( bless [], "Type::${name}" )->info(  ) );
+			$result .= sprintf "  %-18s - %s\n", uc $name, strlimit( ( bless [], "Type::${name}" )->info(  ) );
 		}
+		
+		return $result;
 	}
 
 	sub typ
@@ -240,12 +243,25 @@ package Data::Verify;
 			$type->isa( 'Type::UNIVERSAL' ) or die sprintf "typed( ref, TYPE ) expects a TYPE as second arguemnt. You supplied '%s' which is not.", $type;
 
 			tie $$xref, 'Data::Verify::Typed', $type;
+			
+			$tie_registry->{$xref+0} = ref( $type );
 		}
+		
+		return 1;
 	}
 
+	sub istyp
+	{		
+		no warnings;
+		
+		return $tie_registry->{ $_[0]+0 } if exists $tie_registry->{ $_[0]+0 };  
+	}
+	
 	sub untyp
 	{
 		untie $$_ for @_;
+		
+		delete $tie_registry->{$_+0} for @_;
 	}
 
 	use subs qw(typ untyp);
@@ -254,21 +270,15 @@ package Data::Verify;
 	{
 		my $path = '';
 
-		#s::println "_search_pkg scan $path";
-
 		my @found;
 
 		no strict 'refs';
 
 		foreach my $pkg ( @_ )
 		{
-			#::println "_search_pkg ARG $pkg";
-
 			next unless $pkg =~ /::$/;
 
 			$path .= $pkg;
-
-			#::println "PGK scan $path";
 
 			if( $path =~ /(.*)::$/ )
 			{
@@ -276,8 +286,6 @@ package Data::Verify;
 				{
 					if( $symbol =~ /::$/ && $symbol ne 'main::' )
 					{
-						#::println "PGK $path";
-
 						push @found, "${path}${symbol}";
 					}
 				}
@@ -298,16 +306,16 @@ package Data::Verify;
 	{
 		foreach my $type ( Data::Verify::type_list() )
 		{
-			#::println $type;
+			println $type if $DEBUG;
 
-			::println sprintf "sub %s { Type::Proxy::%s( \@_ ); };", uc $type, uc $type if $DEBUG;
+			println sprintf "sub %s { Type::Proxy::%s( \@_ ); };", uc $type, uc $type if $DEBUG;
 
 			eval sprintf "sub %s { Type::Proxy::%s( \@_ ); };", uc $type, uc $type;
 
 			warn $@ if $@;
 		}
 
-		::println sprintf "use subs qw(%s);", uc( join ' ', Data::Verify::type_list() ) if $DEBUG;
+		println sprintf "use subs qw(%s);", uc( join ' ', Data::Verify::type_list() ) if $DEBUG;
 
 		eval sprintf "use subs qw(%s);", uc( join ' ', Data::Verify::type_list() );
 
@@ -347,7 +355,7 @@ package Type::UNIVERSAL;
 	{
 		my $this = shift;
 
-		return "to_text() on $this called.";
+		return "Type::UNIVERSAL to_text() on $this called.";
 	}
 
 package Type::varchar;
@@ -398,7 +406,7 @@ package Type::bool;
 	{
 		my $this = shift;
 
-		return sprintf 'a %s boolean value', $this->[0] || 'true or false';
+		return sprintf 'a %s value', $this->[0] || 'true or false';
 	}
 
 	sub test
@@ -1113,13 +1121,15 @@ package Data::Verify::Typed;
 
 	our $DEBUG = 0;
 
+	our $BEHAVIOUR = { exceptions => 1, warnings => 1 };
+	
 	sub TIESCALAR
 	{
 		ref( $_[1] ) || die;
 
 		$_[1]->isa( 'Type::UNIVERSAL' ) || die;
 
-		::printfln "TIESC '%s'", ref( $_[1] ) if $DEBUG;
+		Data::Verify::printfln "TIESC '%s'", ref( $_[1] ) if $DEBUG;
 
 	    return bless [ undef, $_[1] ], $_[0];
 	}
@@ -1130,7 +1140,7 @@ package Data::Verify::Typed;
 
 		my $value = shift || undef;
 
-		::printfln "STORE '%s' into %s typed against '%s'", $value, $this, ref( $this->[1] ) if $DEBUG;
+		Data::Verify::printfln "STORE '%s' into %s typed against '%s'", $value, $this, ref( $this->[1] ) if $DEBUG;
 
 		::try
 		{
@@ -1142,9 +1152,13 @@ package Data::Verify::Typed;
 
 			my @back = caller(4);
 
-			warn sprintf "type conflict: '%s' is not %s at %s line %d\n", $value, $this->[1]->info, $back[1], $back[2];
+			warn sprintf "type conflict: '%s' is not %s at %s line %d\n", $value, $this->[1]->info, $back[1], $back[2] if $BEHAVIOUR->{warnings};
 
-			record $e;
+			$e->value = $value;
+			$e->was_file = $back[1];
+			$e->was_line = $back[2];
+			
+			throw $e if $BEHAVIOUR->{exceptions};
 		};
 
 		$this->[0] = $value;
@@ -1154,7 +1168,7 @@ package Data::Verify::Typed;
 	{
 		my $this = shift;
 
-		::printfln "FETCH $this '%s' ", $this->[0] if $DEBUG;
+		Data::Verify::printfln "FETCH $this '%s' ", $this->[0] if $DEBUG;
 
 		return $this->[0];
 	}
@@ -1169,267 +1183,179 @@ Data::Verify - versatile data/type verification, validation and testing
 
 =head1 SYNOPSIS
 
-	use Data::Verify qw(:all);
+use Data::Verify qw(:all);
+use Error qw(:try);
 
-	$Data::Verify::DEBUG = 1;
-
-	catalog();
-
-		# Procedural interface
-
+	# EMAIL, URI, IPV4 are standard types
+	
 	try
 	{
-			# VARCHAR
-
-		verify( 'one two three', Type::Proxy::VARCHAR( 20 ), Function::Proxy::match( qw/one/ ) );
-
-		verify( ' ' x 20 , VARCHAR( 20 ) );
-
-			# NUM
-
-		verify( '0' , NUM( 20 ) );
-
-		verify( '234' , NUM( 20 ) );
-
-			# BOOL
-
-		verify( '1' , BOOL( 'true' ) );
-
-			# INT
-
-		verify( '100' , INT );
-
-			# REAL
-
-		verify( '1.1' , REAL );
-
-			# QUOTED
-
-		verify( '"me"' , QUOTED );
-
-			# GENDER
-
-		verify( 'male' , GENDER );
-
-			# URI
-
-		verify( 'http://www.perl.org' , URI );
-
-		verify( 'http://www.cpan.org' , URI('http') );
-
-		verify( 'https://www.cpan.org' , URI('https') );
-
-		verify( 'ftp://www.cpan.org' , URI('ftp') );
-
-		verify( 'axkit://www.axkit.org' , URI('axkit') );
-
-		verify( '62.01.01.20' , IPV4 );
-
-			# MYSQL types
-
-		verify( '2001-01-01', MYSQL_DATE );
-
-		verify( '9999-12-31 23:59:59', MYSQL_DATETIME );
-
-		verify( '1970-01-01 00:00:00', MYSQL_TIMESTAMP );
-
-		verify( '-838:59:59', MYSQL_TIME );
-
-			# mysql_year: 1901 to 2155, 0000 in the 4-digit
-
-		verify( '1901', MYSQL_YEAR );
-
-		verify( '0000', MYSQL_YEAR );
-
-		verify( '2155', MYSQL_YEAR );
-
-			# mysql_year: 1970-2069 if you use the 2-digit format (70-69);
-
-		verify( '70', MYSQL_YEAR(2) );
-
-		verify( '69', MYSQL_YEAR(2) );
-
-		verify( '0' x 20, MYSQL_TINYTEXT );
-
-		verify( '0' x 20, MYSQL_TINYBLOB );
-
-		verify( '0' x 20, MYSQL_TEXT );
-
-		verify( '0' x 20, MYSQL_BLOB );
-
-		verify( '0' x 20, MYSQL_MEDIUMTEXT );
-
-		verify( '0' x 20, MYSQL_MEDIUMBLOB );
-
-		verify( '0' x 20, MYSQL_LONGTEXT );
-
-		verify( '0' x 20, MYSQL_LONGBLOB );
-
-		verify( 'one', MYSQL_ENUM( qw(one two three) ) );
-
-		verify( [qw(two six)], MYSQL_SET( qw(one two three four five six) ) );
-
-			# EMAIL
-
-		verify( 'muenalan@cpan.org' , EMAIL );
-
-		verify( 'muenalan<at>cpan.org' , EMAIL );
+		verify( $cgi->param( 'email' ), EMAIL  );
+		verify( $cgi->param( 'homepage' ) , URI('http') );
+		verify( $cgi->param( 'serverip' ) , IPV4 );
 	}
 	catch Type::Exception with
-	{
-		my $e = shift;
-
-		print "-" x 100, "\n";
-
-		::printfln "Exception '%s' caught", ref $e;
-
-		::printfln "Expected '%s' %s at %s line %s", $e->value, $e->type->info, $e->was_file, $e->was_line;
+	{	
+			printf "Expected '%s' %s at %s line %s\n", $_->value, $_->type->info, $_->was_file, $_->was_line foreach @_;
 	};
-
-	$Data::Verify::DEBUG = 0;
-
-	::println "=" x 100;
-
-	foreach my $type ( URI, EMAIL, IPV4, VARCHAR(80) )
-	{
-		::println "\n" x 2, "Describing ", $type->info;
-
-		foreach my $entry ( Data::Verify::testplan( $type ) )
-		{
-			::printfln "\texpecting it %s %s ", $entry->[1] ? 'is' : 'is NOT', Data::Verify::strlimit( $entry->[0]->info() );
-		}
-	}
-
-	## Type Binding (Interface)
-
-	::println "-" x 100;
-
-	::println "\nTesting Data::Verify::Typed\n";
-
-	{
-		typ EMAIL, \( my $email, my $email1 );
-
-		my $cp = $email = 'murat.uenalan@gmx.de';
-
-		$email = 'fakeemail%anywhere.de';	# Error
-
-		$email = 'garbage anywhere.de';		# Error
-
-		$email1 = 'test.de';		# Error
-
-		untyp \$email;
-
-		$cp = $email = 'garbage';
-	}
-
-	{
-		typ URI, \( my $uri );
-
-		$uri = 'http://test.de';
-
-		$uri = 'xxx://test.de';	# Error
-	}
-
-	{
-		typ VARCHAR(10), \( my $var );
-
-		$var = join '', (0..9);
-
-		$var = join '', (0..10); # Error
-	}
-
-	{
-		typ IPV4, \( my $ip );
-
-		$ip = '255.255.255.0';
-
-		$ip = '127.0.0.1';
-
-		$ip = '127.0.0.1.x'; # Error
-	}
-
-	{
-		Class::Maker::class 'Watched',
-		{
-			public =>
-			{
-				ipaddr => [qw( addr )],
-			}
-		};
-
-		my $watched = Watched->new();
-
-		typ IPV4, \( $watched->addr );
-
-		$watched->addr( 'XxXxX' ); # Error
-	}
-
-	sub MYSQL::SET  { MYSQL_SET( @_ ) }
-
-	sub MYSQL::ENUM { MYSQL_ENUM( @_ ) }
-
-	{
-		typ MYSQL::ENUM( qw(Murat mo muri) ), \( my $alias );
-
-		$alias = 'Murat';
-
-		$alias = 'mo';
-
-		$alias = 'muri';
-
-		$alias = 'idiot'; # Error ;)
-	}
-
-	{
-		typ MYSQL::SET( qw(Murat mo muri) ), \( my $alias );
-
-		$alias = [ qw(Murat mo)];
-
-		$alias = [ 'john' ]; # Error ;)
-	}
-
+	
 =head1 DESCRIPTION
+
+This module supports types. Out of the ordinary it supports parameterised types (like
+databases have i.e. VARCHAR(80) ). When you try to feed a typed variable against some
+odd data, this module explains what he would have expected. It doesnt support casting (yet).
+
 
 =head1 KEYWORDS
 
-=head1 TESTS
-
-=head2 BASIC TESTS
-
-=head2 CUSTOM TESTS
+data types, data manipulation, data patterns, user input, tie
 
 =head1 TYPES
 
+Data::Verify 0.01_13 supports 26 types:
+
+  BOOL               - a true or false value
+  EMAIL              - an email address
+  GENDER             - a gender (male|female)
+  INT                - an integer
+  IPV4               - an IPv4 network address
+  MYSQL_BLOB         - a 'blob' or 'text' with a max length of 65535 (2^16 - 1) cha..
+  MYSQL_DATE         - a date
+  MYSQL_DATETIME     - a date and time combination
+  MYSQL_ENUM         - a member of an enumeration
+  MYSQL_LONGBLOB     - a 'blob' or 'text' with a max length of 4294967295 (2^32 - 1..
+  MYSQL_LONGTEXT     - a 'blob' or 'text' with a max length of 4294967295 (2^32 - 1..
+  MYSQL_MEDIUMBLOB   - a 'blob' or 'text' with a max length of 16777215 (2^24 - 1) ..
+  MYSQL_MEDIUMTEXT   - a 'blob' or 'text' with a max length of 16777215 (2^24 - 1) ..
+  MYSQL_SET          - a set
+  MYSQL_TEXT         - a 'blob' or 'text' with a max length of 65535 (2^16 - 1) cha..
+  MYSQL_TIME         - a time
+  MYSQL_TIMESTAMP    - a timestamp
+  MYSQL_TINYBLOB     - a 'blob' or 'text' with a max length of 255 (2^8 - 1) charac..
+  MYSQL_TINYTEXT     - a 'blob' or 'text' with a max length of 255 (2^8 - 1) charac..
+  MYSQL_YEAR         - a year in 2- or 4-digit format
+  NUM                - a number
+  QUOTED             - a quoted string
+  REAL               - a real
+  URI                - an http uri
+  VARCHAR            - a string with limited length of choice (default 60)
+  WORD               - a word (without spaces)
+
 =head2 NUMERIC TYPES
+
+INT, NUM, REAL
 
 =head2 DATE AND TIME TYPES
 
+MYSQL_DATE, MYSQL_DATETIME, MYSQL_TIME, MYSQL_TIMESTAMP, MYSQL_YEAR
+
 =head2 STRING (CHARACTERS) TYPES
 
-=head2 CUSTOM TYPES
+EMAIL, GENDER, IPV4, MYSQL_BLOB, MYSQL_LONGBLOB, MYSQL_LONGTEXT, MYSQL_MEDIUMBLOB,
+MYSQL_MEDIUMTEXT, MYSQL_TEXT, MYSQL_TINYBLOB, MYSQL_TINYTEXT, QUOTED, URI, VARCHAR,
+WORD
+
+=head2 OTHER TYPES
+
+MYSQL_ENUM, MYSQL_SET
 
 =head1 INTERFACE
 
 =head2 FUNCTIONS
 
-	verify( $teststring, $type, [ .. ] ) - Verifies a 'value' against a 'type'.
+verify( $teststring, $type, [ .. ] ) - Verifies a 'value' against a 'type'.
+
+=head3 Example
+
+see SYNOPSIS.
 
 =head2 TYPE BINDING
 
-	typ/untyp
+typ/untyp/istyp
+
+=head3 Example	
+
+try
+{
+	typ MYSQL_ENUM( qw(Murat mo muri) ), \( my $alias );
+
+	$alias = 'Murat';
+
+	$alias = 'mo';
+
+	$alias = 'XXX';
+}
+catch Type::Exception ::with
+{
+	printf "Expected '%s' %s at %s line %s\n", $_->value, $_->type->info, $_->was_file, $_->was_line foreach @_;
+};
+
+=head1 Exceptions
+
+Exceptions are implemented via the 'Error' module.
+
+=head2 Type::Exception
+
+This is a base class inheriting 'Error'. 
+
+=head2 Failure::Type
+
+Is a 'Type::Exception' and has following additional members:
+
+	bool: 
+		expected	- reserved for future use 
+		returned	- reserved for future use
+	string: 
+		was_file	- the filename where the exception was thrown
+	int: 
+		was_line	- the line number
+	ref: 
+		type 		- the type 'object' used for verification
+		value		- a reference to the data given for verification against the type
+
+=head2 Failure::Function (Internal use only)
+
+This exception is thrown in the verification process if a Function (which is a subelement
+of the verification process) fails.
+
+Is a 'Type::Exception' and has following additional members.
+
+	bool: 
+		expected 	- reserved for future use
+		returned	- reserved for future use
+	ref: 
+		type		- the type 'object' used for verification
+
+=head1 Retrieving Type Information
+
+=head2 catalog()
+
+returns a static string containing a listing of all know types (and a short information). This
+may be used to get an overview via:
+
+perl -e "use Data::Verify qw(:all); print catalog()"
+
+=head2 testplan( $type )
+
+Returns the entry-objects how the type is verified. This may be used to create a textual description how a type is verified.
+ 
+		foreach my $entry ( testplan( $type ) )
+		{
+			printf "\texpecting it %s %s ", $entry->[1] ? 'is' : 'is NOT', strlimit( $entry->[0]->info() );
+		}
 
 =head2 EXPORT
 
-all = (typ untyp verify catalog testplan), map { uc } @types
+all = (typ untyp istyp verify catalog testplan), map { uc } @types
 
 None by default.
 
 =head1 AUTHOR
 
-Murat Uenalan, muenalan@cpan.org
+Murat Ünalan, <murat.uenalan@cpan.org>
 
 =head1 SEE ALSO
 
 Data::Types, String::Checker, Regexp::Common, Data::FormValidator, HTML::FormValidator, CGI::FormMagick::Validator, CGI::Validate,
-Email::Valid, Email::Valid::Loose, Embperl::Form::Validate
+Email::Valid, Email::Valid::Loose, Embperl::Form::Validate, Attribute::Types
 
